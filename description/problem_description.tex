@@ -1,0 +1,331 @@
+\documentclass[11pt,twocolumn]{amsart}
+\setlength{\columnsep}{0.5cm}
+
+\usepackage{amsfonts,amsthm,amssymb,amsmath,amsopn,float}
+\usepackage{xifthen}
+\usepackage{graphicx}
+\usepackage{tikz,pgfplots}
+\usepackage{epstopdf}
+%\usepackage{hyperref}
+\usepackage[pdftex,backref=section,hypertexnames=true,plainpages=false,
+naturalnames,colorlinks=true,linkcolor=blue,bookmarks]{hyperref}
+\usepackage[margin=0.5in]{geometry}  % set the margins to 1ine on all sides
+%\usepackage{subfigure}
+%\usepackage{subcaption}
+%\usepackage[foot]{amsaddr} % to add address of the authors in footnote size at the bottom
+
+% for more insight into compilation error
+\errorcontextlines 90000
+%% to check reference need to uncomment and after checking need to comment this back.
+%\usepackage{refcheck} 
+
+\usepackage{algorithm}
+%\usepackage{algpseudocode}
+\usepackage{algcompatible}
+
+\usepackage{color}
+\definecolor{mygray}{RGB}{47,79,79}
+ 	
+\theoremstyle{definition}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{noname}[theorem]{}
+\newtheorem{sublemma}{}[theorem]
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{summary}[theorem]{Summary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{remark}[theorem]{Remark}
+\numberwithin{equation}{section}
+\newcommand{\ba}{\backslash}
+\graphicspath{ {images/} }
+\numberwithin{equation}{section}
+\newcommand{\bolds}[1]{\boldsymbol{#1}}
+\newcommand{\sref}[2]{\hyperref[#2]{#1 \ref*{#2}}}
+\newcommand{\R}{\mathbf{R}}  % The real numbers.
+\newcommand{\Z}{\mathbf{Z}}  % The integer numbers.
+
+
+% Algorithmic modifications
+%\makeatletter
+%\newcommand{\HPXLOOP}[1]{\ALC@it\algorithmicloop\ #1%
+%  \begin{ALC@hpx}}
+%\newcommand{\ENDHPXLOOP}{\end{ALC@hpx}\ALC@it\algorithmicendloop}
+%\makeatother
+\algblockdefx[Hloop]{Hloop}{EndHloop}[1][]{\textbf{hpx::parallel::for$\_$loop} #1}{\textbf{end parallel for}}
+
+%-------------------------------------------------------------------------%
+% document starts from here
+%-------------------------------------------------------------------------%
+\begin{document}
+\title{Nonlocal diffusion problem: Mesh partitioning for HPX parallel computing}
+
+\maketitle
+
+In this document we discuss the problem where we want to solve nonlocal diffusion equation in 2-d using parallel API called HPX. Our goal is to fully parallelize the code, i.e. starting from mesh partition to computation of fields at mesh nodes. As our main goal is to implement the parallel algorithm, we minimize the complexity by considering simple nonlocal diffusion model, Dirichlet boundary condition, and finite difference approximation over uniform mesh. The extension to more complicated nonlocal diffusion equation and also to peridynamics (nonlocal mechanics) is not difficult. Also, once the parallel code is implemented for finite difference approximation, one can look for extension of this to finite element approximation.
+
+\section{Nonlocal diffusion equation}
+We consider material domain $D = (0,1)^2$ and time domain $I = [0,T]$. We fix size of horizon $\epsilon>0$. Let $D_c = (-\epsilon, 1+\epsilon)^2 - D$ be the nonlocal boundary of thickness $\epsilon$ surrounding $D$. See \autoref{fig:domain}. We define $H_r(x)$ as two-dimensional open ball of radius $r$ centered at $x\in \R^2$.
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.5]{material_domain.png}
+\caption{Material domain $D$ and nonlocal boundary $D_c$. Figure shows typical material point $x\in D$ and ball $H_\epsilon(x)$. }\label{fig:domain}
+\end{figure}
+
+Let $u:I \times D\cup D_c \to \R$ is a temperature field. Let $J:\R \to \R$ be positive function such that $0\leq J(r) \leq M$ for $r\in [0,1]$ and $J(r) = 0$ for $r\notin [0,1]$. We refer to $J$ as influence function. 
+
+$u(t,x)$ satisfies following nonlocal diffusion equation, $\forall x\in D \text{ and } \forall t \in I$,
+\begin{align}\label{eq:diff eqn}
+\dfrac{\partial }{\partial t} u(t,x) &= \dfrac{1}{\epsilon^4} \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy .
+\end{align}
+Initial condition is given by
+\begin{align}\label{eq:ic}
+u(0,x) = u_0(x) \qquad \forall x\in D
+\end{align}
+and boundary condition is given by
+\begin{align} \label{eq:bc}
+u(t,x) = 0 \qquad \forall x\in D_c \text{ and } \forall t\in I.
+\end{align}
+
+% Insert the algorithm
+\begin{algorithm}[ht]
+	\caption{Serial implementation}
+	\label{alg:serial}
+	\begin{algorithmic}[1]
+		\STATE \textcolor{mygray}{\it $\%$ Create neighbor list}
+		\FOR {each integer $i \in K$}
+			\IF {$|x_i - x_j| \leq \epsilon$}
+				\STATE Add $j$ to neighborList$[i]$
+			\ENDIF
+		\ENDFOR
+		\STATE
+		\STATE \textcolor{mygray}{\it $\%$ $U$ is the vector of temperatures of}
+		\STATE \textcolor{mygray}{\it $\%$ all mesh nodes.}
+		\STATE
+		\STATE \textcolor{mygray}{\it $\%$ integrate in time}
+		\FOR {each integer $0\leq k \leq T/\Delta t$}
+			\STATE \textcolor{mygray}{\it $\%$ time step $k$}
+			\FOR {each integer $i \in K$}
+				\STATE \textcolor{mygray}{\it $\%$ Loop over neighbors of $i$}
+				\STATE $val\_i = 0$
+				\FOR {each integer $j\in$ neighborList$[i]$}
+					\STATE $val\_i = val\_i + $					
+					\STATE $\quad \frac{1}{\epsilon^4} J(|x_j - x_i|/\epsilon) (U[j] - U[i])V_j$
+				\ENDFOR
+				\STATE \textcolor{mygray}{\it $\%$ Update temperature}
+				\STATE $U[i] = U[i] + \Delta t \times val\_i$
+			\ENDFOR	
+			\STATE \textcolor{mygray}{\it $\%$ Output temperature at time $t^k = k\Delta t$}
+			\STATE Output($U$)
+		\ENDFOR
+	\end{algorithmic}
+\end{algorithm}
+
+\section{Finite difference approximation}
+Consider uniform mesh $D_h = (D\cup D_c)\cap (h\Z)^2$ of mesh size $h >0$, see \autoref{fig:mesh fd}. Let $\Delta t$ is size of time step and $[0,T]\cap (\Delta t \Z)$ be the discretization of time domain. We assume $\epsilon = m h$ where $m\geq 1$ is some integer.
+
+We consider index set $K \subset \Z^2$ such that for $i\in K$, $x_i = h i \in D$. Similarly, consider index set $K_c \subset \Z^2$ such that for $i\in K_c$, $x_i = h i \in D_c$.
+
+Let $\hat{u}^k_i$ be the solution of forward euler discretization in time. It satisfies,$\forall 1\leq k \leq T/\Delta t, \forall i \in K$,
+\begin{align}\label{eq:forward fd}
+\dfrac{\hat{u}^{k+1}_i - \hat{u}^k_i}{\Delta t} = \dfrac{1}{\epsilon^4} \sum_{\substack{j \in K\cup K_c,\\
+|x_j-x_i| \leq \epsilon}} J(|x_j - x_i|/\epsilon) (\hat{u}^k_j - \hat{u}^k_i) V_j
+\end{align}
+and
+\begin{align}
+\hat{u}^k_i = 0 \qquad \forall 0\leq k \leq T/\Delta t, \forall i \in K_c.
+\end{align}
+At $k=0$, we have $\hat{u}^0_i = u_0(x_i)$ for all $i\in K$. $V_j$ is the volume occupied by node $j$ and in our case we have $V_j = h^2$. 
+
+\begin{figure}[ht]
+\centering
+\includegraphics[scale=0.6]{mesh_uniform.png}
+\caption{Uniform mesh of size $h$. Shaded area corresponds to nonlocal boundary $D_c$. We specify zero temperature on all the mesh nodes in the shaded area. For mesh node $x_i$ in $D$, we consider interaction of $x_i$ with all the mesh nodes inside the green shaded ball.}\label{fig:mesh fd}
+\end{figure}
+
+
+
+\subsection{Serial and semi-parallel implementation of forward euler scheme}
+Algorithm for  serial implementation is given in \sref{Algorithm}{alg:serial}. For parallel implementation, we will use parallel for loop (HPX utility). See \sref{Algorithm}{alg:semi parallel}. In \sref{Algorithm}{alg:semi parallel}, we observe that temperature data of all mesh nodes is stored in single data variable, ``$U$", and similarly, neighbor list of all the mesh nodes are stored in single data variable, ``neighborList". We refer to this as semi-parallel as we have only parallelized for-loop and not the data. In fully parallel implementation, data will also be divided in number of computational nodes and each computational node will own data corresponding to it. This requires mesh partition. We discuss this in next section. 
+
+% Insert the algorithm
+\begin{algorithm}[ht]
+	\caption{Semi-parallel implementation}
+	\label{alg:semi parallel}
+	\begin{algorithmic}[1]
+		\STATE \textcolor{mygray}{\it $\%$ Create neighbor list using }
+		\STATE \textcolor{mygray}{\it $\%$ hpx parallel for loop}
+		\Hloop {each integer $i \in K$} \textbf{do}
+			 \IF {$|x_i - x_j| \leq \epsilon$}
+				\STATE Add $j$ to neighborList$[i]$
+			\ENDIF
+		\EndHloop
+		\STATE
+		\STATE \textcolor{mygray}{\it $\%$ is the vector of temperatures of}
+		\STATE \textcolor{mygray}{\it $\%$ all mesh nodes. }
+		\STATE
+		\STATE \textcolor{mygray}{\it $\%$ integrate in time}
+		\FOR {each integer $1\leq k \leq T/\Delta t$}
+			\STATE \textcolor{mygray}{\it $\%$ time step $k$}
+			\STATE \textcolor{mygray}{\it $\%$ process mesh nodes in parallel}
+			\Hloop {each integer $i \in K$}
+				\STATE  \textcolor{mygray}{\it $\%$ Loop over neighbors of $i$}
+				\STATE $val\_i = 0$
+				\FOR {each integer $j\in$ neighborList$[i]$}
+					\STATE $val\_i = val\_i + $
+					\STATE $\quad +  \frac{1}{\epsilon^4} J(|x_j - x_i|/\epsilon) (U[j] - U[i])V_j$
+				\ENDFOR
+				\STATE \textcolor{mygray}{\it $\%$ Update temperature}
+				\STATE $U[i] = U[i] + \Delta t \times val\_i$
+			\EndHloop	
+			\STATE \textcolor{mygray}{\it $\%$ Output temperature at time $t^k = k\Delta t$}
+			\STATE Output($U$)
+		\ENDFOR
+	\end{algorithmic}
+\end{algorithm}
+
+\section{Parallelization and mesh partition}
+Given $N$ number of computational nodes, mesh will be partitioned in $N$ parts such that each computational node will store the information corresponding to the mesh partition it owns. For example, consider 4 computers connected by network. We would like to run the problem on all 4 computers in parallel. We will partition the mesh in four parts, see \autoref{fig:mesh partition}.
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.6]{mesh_partition.png}
+\caption{Typical mesh partition. Mesh nodes under each color are owned by the respective computer.}\label{fig:mesh partition}
+\end{figure}
+
+In \autoref{fig:mesh partition}, the mesh is colored to show the partition. Consider part of mesh colored as green. Let us suppose the id of computer who owns the green, blue, yellow, and red are 1, 2, 3, and 4 respectively. We now focus on one computational node, say green, and present two possible situations.
+
+\textbf{Case 1: }Consider mesh node $x_i$ which belongs to computer 1's partition. Let us suppose that $x_i$ is within the dashed line, see \autoref{fig:green case 1}. For such $x_i$, all mesh nodes $x_j \in H_\epsilon(x_i)$  will be within the green partition. Since computer 1 owns the mesh data of green partition, calculation of right hand side of \autoref{eq:forward fd}, i.e. $\dfrac{1}{\epsilon^4} J(|x_j - x_i|/\epsilon)(\hat{u}^k_j - \hat{u}^k_i)V_j$, can be carried out without needing to interact with other computers. 
+
+\begin{figure}[ht]
+\centering
+\includegraphics[scale=0.5]{mesh_partition_green_case_1.png}
+\caption{Mesh nodes of green partition which are within dashed line do not interact with partition owned by other computers.}\label{fig:green case 1}
+\end{figure}
+
+\textbf{Case 2: }Now consider another mesh node $x_i$ in green partition. This mesh node is close to the boundary of green partition, and we see that there are mesh nodes $x_j$ which are in ball $H_\epsilon(x_i)$, but which are not part of green partition. For example, we consider $x_j \in H_\epsilon(x_i)$ in \autoref{fig:green case 2}. Mesh node $x_j$ is in Blue partition. Blue partition is owned by computer 2. Therefore, to compute the right hand side term in \autoref{eq:forward fd}, computer 1 has to request the information associated to mesh node $x_j$ from computer 2. We see that for all the mesh nodes in Green partition which are outside dash line, computer 1 will have to communicate with other computers for the information. 
+
+\begin{figure}[ht]
+\centering
+\includegraphics[scale=0.5]{mesh_partition_green_case_2.png}
+\caption{In first example, mesh node $x_i$ of Green partition interacts with few mesh nodes of Blue partition owned by computer 2. In second example, we see that $x_i$ of Green mesh interacts with mesh nodes owned by computer 2, 3, and 4.}\label{fig:green case 2}
+\end{figure}
+
+\subsection{Algorithm for fully parallel code}
+Consider \sref{Algorithm}{alg:parallel} which outlines the steps needed to run the problem in fully parallel framework. Following are the list of steps which will require effort in implementing \sref{Algorithm}{alg:parallel}.
+
+\noindent \textbf{1. Partitioning of mesh: }Libraries are available which can partition the mesh into given number of computational nodes.
+
+\noindent \textbf{2. List of interacting mesh nodes owned by other computational node: }If global mesh data is available to each computational node then we can create a list of interacting neighboring mesh nodes which are owned by other computational node. This list will have global id, which is unique, of mesh nodes. 
+
+\noindent \textbf{3. Sharing of information: }For given computational node, we need to implement the method which shares information to other computational node and which receives the information from other computational node. For this we need a list of information to be shared and communication method available in HPX framework.
+
+
+% Insert the algorithm
+\begin{algorithm}[ht]
+	\caption{Fully parallel implementation}
+	\label{alg:parallel}
+	\begin{algorithmic}[1]
+		\STATE \textcolor{mygray}{\it $\%$ mesh$\_$file is the file containing mesh data}
+		\STATE \textcolor{mygray}{\it $\%$ N is the number of computational nodes}
+		\STATE
+		\STATE \textcolor{mygray}{\it $\%$ get the id of this computational node }
+		\STATE my$\_$id = get$\_$id()
+		\STATE
+		\STATE \textcolor{mygray}{\it $\%$ read mesh data and create mesh partition}
+		\STATE myMeshNodes = create$\_$mesh$\_$partition(mesh$\_$file)
+		\STATE
+		\STATE \textcolor{mygray}{\it $\%$ create neighbor list.}
+		\STATE neighborList = create$\_$neighbor$\_$list(mesh$\_$file)
+		\STATE
+		\STATE \textcolor{mygray}{\it $\%$ next task is to create a list of mesh}
+		\STATE \textcolor{mygray}{\it $\%$ nodes, associated to other computational} 
+		\STATE \textcolor{mygray}{\it $\%$ nodes, which interact with mesh nodes}
+		\STATE \textcolor{mygray}{\it $\%$ owned by this computational node}
+		\FOR {each integer $0\leq i \leq N$} 
+			\IF {$i == $ my$\_id$}
+				\STATE \textcolor{mygray}{\it $\%$ skip this i}
+			\ELSE
+				\STATE \textcolor{mygray}{\it $\%$ create a list of interacting nodes}
+				\STATE \textcolor{mygray}{\it $\%$ owned by comp. node $i$}
+				\STATE neighborsOutside[i] 
+				\STATE \; = create$\_$list$\_$interacting$\_$nodes(my$\_$id, i)			
+			\ENDIF
+		\ENDFOR
+		\STATE
+		\STATE \textcolor{mygray}{\it $\%$ $U$ is the vector of temperatures of}
+		\STATE \textcolor{mygray}{\it $\%$ mesh nodes owned by this comp. node}
+		\STATE 
+		\STATE \textcolor{mygray}{\it $\%$ integrate in time}
+		\FOR {each integer $0\leq k \leq T/\Delta t$}
+			\STATE \textcolor{mygray}{\it $\%$ time step $k$}
+			\STATE 
+			\STATE \textcolor{mygray}{\it $\%$ get data from other computer }
+			\STATE \textcolor{mygray}{\it $\%$ before integrating in time}
+			\FOR {each integer $0\leq i \leq N$} 
+				\IF {$i == $ my$\_id$}
+					\STATE \textcolor{mygray}{\it $\%$ skip this i}
+				\ELSE
+					\STATE \textcolor{mygray}{\it $\%$ request data from comp. node i}
+					\STATE getData[i] = request$\_$data(my$\_$id, i)
+					\STATE 
+					\STATE \textcolor{mygray}{\it $\%$ share data to comp. node i}
+					\STATE \textcolor{mygray}{\it $\%$ as comp. node i may also have}
+					\STATE \textcolor{mygray}{\it $\%$ mesh nodes which have neighbors }
+					\STATE \textcolor{mygray}{\it $\%$ in this comp. node}
+					\STATE share$\_$data(my$\_$id, i)
+				\ENDIF
+			\ENDFOR
+			\algstore{myalg}
+	\end{algorithmic}
+\end{algorithm}			
+
+\begin{algorithm}
+	\begin{algorithmic}[1]
+	\algrestore{myalg}	
+			\STATE \textcolor{mygray}{\it $\%$ we now have all the relevant data so}
+			\STATE \textcolor{mygray}{\it $\%$ we can solve for temperature}
+			\STATE \textcolor{mygray}{\it $\%$ at next time step}
+			\Hloop {$i \in $ myMeshNodes} \textbf{do}
+				\STATE \textcolor{mygray}{\it $\%$ Loop over neighbors of $i$}
+				\STATE $val\_i = 0$
+				\FOR {each integer $j\in$ neighborList$[i]$}
+					\STATE \textcolor{mygray}{\it $\%$ check if $j$ is in myMeshNode}
+					\IF {$j \in $ myMeshNode}
+						\STATE \textcolor{mygray}{\it $\%$ this mesh node is within dashed line}
+						\STATE
+						\STATE \textcolor{mygray}{\it $\%$ compute contribution}
+						\STATE $val\_i = val\_i $
+						\STATE $\quad +  \dfrac{1}{\epsilon^4} J(|x_j - x_i|/\epsilon)$
+						\STATE $\quad (U[j] - U[i])V_j$
+					\ELSE 
+						\STATE \textcolor{mygray}{\it $\%$ this mesh node is outside dashed line}
+						\STATE \textcolor{mygray}{\it $\%$ search and find which comp. node }
+						\STATE \textcolor{mygray}{\it $\%$ owns mesh node $j$}
+						\STATE get$\_$comp$\_$id = 
+						\STATE \; search$\_$for$\_$mesh$\_$node(my$\_$id, j)
+						\STATE
+						\STATE \textcolor{mygray}{\it $\%$ Look for j in getData[get$\_$comp$\_$id]}
+						\STATE \textcolor{mygray}{\it $\%$ and get the temperature of mesh node j}			
+						\STATE t$\_$j = find$\_$in(j, getData[get$\_$comp$\_$id])
+						\STATE
+						\STATE \textcolor{mygray}{\it $\%$ compute contribution}
+						\STATE $val\_i = val\_i $
+						\STATE $\quad +  \dfrac{1}{\epsilon^4} J(|x_j - x_i|/\epsilon)$
+						\STATE $\quad (t\_j - U[i])V_j$	
+					\ENDIF
+				\ENDFOR
+				\STATE \textcolor{mygray}{\it $\%$ Update temperature}
+				\STATE $U[i] = U[i] + \Delta t \times val\_i$
+			\EndHloop	
+			\STATE \textcolor{mygray}{\it $\%$ Output temperature at time $t^k = k\Delta t$}
+			\STATE Output($U$)
+		\ENDFOR
+	\end{algorithmic}
+\end{algorithm}
+
+\end{document}
