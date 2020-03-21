@@ -25,6 +25,19 @@ naturalnames,colorlinks=true,linkcolor=blue,bookmarks]{hyperref}
 
 \usepackage{color}
 \definecolor{mygray}{RGB}{47,79,79}
+
+
+\usepackage{amsaddr}
+
+\makeatletter
+\renewcommand{\email}[2][]{%
+	\ifx\emails\@empty\relax\else{\g@addto@macro\emails{,\space}}\fi%
+	\@ifnotempty{#1}{\g@addto@macro\emails{\textrm{(#1)}\space}}%
+	\g@addto@macro\emails{#2}%
+}
+\makeatother
+
+\usepackage{placeins}
  	
 \theoremstyle{definition}
 \newtheorem{theorem}{Theorem}[section]
@@ -63,14 +76,40 @@ naturalnames,colorlinks=true,linkcolor=blue,bookmarks]{hyperref}
 % document starts from here
 %-------------------------------------------------------------------------%
 \begin{document}
-\title{Nonlocal diffusion problem: Mesh partitioning for HPX parallel computing}
+\title{Mesh partitioning for HPX parallel computing for nonlocal computational models}
+
+\author{Prashant K. Jha$^\dagger$}
+
+
+\address[$\dagger$]{Oden Institute for Computational Engineering and Sciences, \\
+The University of Texas at Austin, \\
+Austin, TX 78712, USA}
+\email[$\dagger$]{pjha.sci@gmail.com}
+
+\author{Patrick Diehl$^\ddagger$}
+
+\address[$\ddagger$]{Center for Computation and Technology, \\
+	Louisiana State University, \\
+	Baton Rouge, LA 70803 USA}
+\email[$\ddagger$]{pdiehl@cct.lsu.edu}
 
 \maketitle
 
-In this document we discuss the problem where we want to solve nonlocal diffusion equation in 2-d using parallel API called HPX. Our goal is to fully parallelize the code, i.e. starting from mesh partition to computation of fields at mesh nodes. As our main goal is to implement the parallel algorithm, we minimize the complexity by considering simple nonlocal diffusion model, Dirichlet boundary condition, and finite difference approximation over uniform mesh. The extension to more complicated nonlocal diffusion equation and also to peridynamics (nonlocal mechanics) is not difficult. Also, once the parallel code is implemented for finite difference approximation, one can look for extension of this to finite element approximation.
+In this document, we consider a general class of nonlocal computational model seen in various fields, such as Peridynamics \cite{CMPer-Silling5,BobaruHu,HaBobaru,CMPer-Agwai,CMPer-Ghajari,Diehl,CMPer-Lipton2,CMPer-JhaLipton2,CMPer-JhaLipton5}, discrete element method \cite{NM-Desai,NM-Desai2,NM-Gladkyy,NM-Lobo,NM-Dosta}, Peridynamics plus discrete element method for granular media \cite{NM-Zhu, NM-Masoud}, nonlocal cell-cell adhesion in computational biology \cite{armstrong2006continuum,engwer2017structured,stinner2014global}, nonlocal heat equation \cite{burch2011classical,du2012analysis}. References above are only minuscule fraction of what is available. The application of nonlocal modeling method for understanding of complex spatially multiscale phenomenon is seen in various new fields such as fluid mechanics, particulate media, directed self-assembly of Block-Copolymers, tumor modeling, etc. What is more interesting and also convenient is that underlying algorithm which is used to numerically solve these nonlocal models is more or less same and therefore the efficient computational method available for one type of nonlocal model can be easily applied to the nonlocal model in other fields.
+
+It is our understanding that efficient computational method to solve the nonlocal model is very important. It is widely known that the nonlocal models are much more computationally demanding compared to their counterpart, namely local models (such as heat equation, wave equation, etc). This is because the length of interaction in nonlocal model is typically 3 to 10 times larger than the size of discretization and therefore, the usual local assembly of matrix and vector considered in solution of pdes (partial differential equation) is not feasible. The efficient parallel implementation because of long-range interaction is difficult due to dependence over much larger length scale. 
+
+In this document we present this problem using simple example of nonlocal diffusion equation, see \cite{burch2011classical} and references therein for more information. Our main goal is to highlight key difficulties in designing massively parallel scheme for nonlocal models while keeping the model related complexity to minimum. For this purpose nonlocal heat equation is suitable. Further, to fix the ideas we only consider two dimensional setting. 
+
+In this work we use parallel API called HPX. HPX is an open source asynchronous many task run time system that focuses on high performance computing~\cite{Heller2017,tabbal2011preliminary,kaiser2014hpx}. HPX provides wait-free asynchronous execution and futurization for synchronization. It also features parallel execution policies utilizing a task scheduler, which enables a fine-grained load balancing parallelization and synchronization due to work stealing. HPX is in strict adherence to the C++ $11$~\cite{cxx11_standard} and C++ $17$ standard definitions~\cite{cxx17_standard}.\\
+
 
 \section{Nonlocal diffusion equation}
-We consider material domain $D = (0,1)^2$ and time domain $I = [0,T]$. We fix size of horizon $\epsilon>0$. Let $D_c = (-\epsilon, 1+\epsilon)^2 - D$ be the nonlocal boundary of thickness $\epsilon$ surrounding $D$. See \autoref{fig:domain}. We define $H_r(x)$ as two-dimensional open ball of radius $r$ centered at $x\in \R^2$.
+In this section we give brief overview of nonlocal diffusion equation for temperature field $u$ over an square domain $D = [0,1]^2$ subjected to zero temperature condition on its boundary and subjected to given heat source distribution within the domain. It is a first order transient equation in time. For simplification, we only consider explicit time integration scheme, namely forward Euler scheme. For spatial discretization, we consider uniform mesh over domain $D$ and consider finite difference approximation (also commonly referred to as particle discretization). The resulting final equations are very simple and serial implementation requires only few lines of code, see \autoref{alg:serial}. With HPX, thread-level parallel implementation and shared-memory parallel implementation is almost as simple as serial implementation, see \autoref{alg:semi parallel}. 
+
+Our goal is to fully parallelize the solver, i.e. starting from mesh partition to computation of fields at mesh nodes. We proceed step wise starting from serial implementation, to shared-memory parallel implementation, and to fully parallel implementation and discuss the challenges going from one step to next. 
+
+Let material domain is $D = [0,1]^2$ and time domain $I = [0,T]$. We fix size of horizon (length over one point interacts with another, also called nonlocal length scale) $\epsilon>0$. Let $D_c = (-\epsilon, 1+\epsilon)^2 - D$ be the nonlocal boundary of thickness $\epsilon$ surrounding $D$. See \autoref{fig:domain}. We define $H_r(x)$ as two-dimensional open ball of radius $r$ centered at $x\in \R^2$.
 
 \begin{figure}
 \centering
@@ -128,11 +167,11 @@ u(t,x) = 0 \qquad \forall x\in D_c \text{ and } \forall t\in I.
 \end{algorithm}
 
 \section{Finite difference approximation}
-Consider uniform mesh $D_h = (D\cup D_c)\cap (h\Z)^2$ of mesh size $h >0$, see \autoref{fig:mesh fd}. Let $\Delta t$ is size of time step and $[0,T]\cap (\Delta t \Z)$ be the discretization of time domain. We assume $\epsilon = m h$ where $m\geq 1$ is some integer.
+Consider uniform mesh $D_h = (D\cup D_c)\cap (h\Z)^2$ of mesh size $h >0$, see \autoref{fig:mesh fd}. $\Z$ is the set of positive and negative integers. Let $\Delta t$ is size of time step and $[0,T]\cap (\Delta t \Z)$ be the discretization of time domain. We assume $\epsilon = m h$ where $m\geq 1$ is some integer.
 
 We consider index set $K \subset \Z^2$ such that for $i\in K$, $x_i = h i \in D$. Similarly, consider index set $K_c \subset \Z^2$ such that for $i\in K_c$, $x_i = h i \in D_c$.
 
-Let $\hat{u}^k_i$ be the solution of forward euler discretization in time. It satisfies,$\forall 1\leq k \leq T/\Delta t, \forall i \in K$,
+Let $\hat{u}^k_i$ be the solution of forward Euler discretization in time. It satisfies,$\forall 1\leq k \leq T/\Delta t, \forall i \in K$,
 \begin{align}\label{eq:forward fd}
 \dfrac{\hat{u}^{k+1}_i - \hat{u}^k_i}{\Delta t} = \dfrac{1}{\epsilon^4} \sum_{\substack{j \in K\cup K_c,\\
 |x_j-x_i| \leq \epsilon}} J(|x_j - x_i|/\epsilon) (\hat{u}^k_j - \hat{u}^k_i) V_j
@@ -329,5 +368,188 @@ Consider \sref{Algorithm}{alg:parallel} which outlines the steps needed to run t
 		\ENDFOR
 	\end{algorithmic}
 \end{algorithm}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% References
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\FloatBarrier
+%\bibliographystyle{plain}
+%\bibliography{main}
+
+\newcommand{\noopsort}[1]{}
+\begin{thebibliography}{10}
+	
+	\bibitem{CMPer-Agwai}
+	Abigail Agwai, Ibrahim Guven, and Erdogan Madenci.
+	\newblock Predicting crack propagation with peridynamics: a comparative study.
+	\newblock {\em International journal of fracture}, 171(1):65--78, 2011.
+	
+	\bibitem{armstrong2006continuum}
+	Nicola~J Armstrong, Kevin~J Painter, and Jonathan~A Sherratt.
+	\newblock A continuum approach to modelling cell--cell adhesion.
+	\newblock {\em Journal of theoretical biology}, 243(1):98--113, 2006.
+	
+	\bibitem{NM-Masoud}
+	Masoud Behzadinasab, Tracy~J Vogler, Amanda~M Peterson, Rezwanur Rahman, and
+	John~T Foster.
+	\newblock Peridynamics modeling of a shock wave perturbation decay experiment
+	in granular materials with intra-granular fracture.
+	\newblock {\em Journal of Dynamic Behavior of Materials}, 4(4):529--542, 2018.
+	
+	\bibitem{BobaruHu}
+	Florin Bobaru and Wenke Hu.
+	\newblock The meaning, selection, and use of the peridynamic horizon and its
+	relation to crack branching in brittle materials.
+	\newblock {\em International journal of fracture}, 176(2):215--222, 2012.
+	
+	\bibitem{burch2011classical}
+	Nathanial Burch and Richard Lehoucq.
+	\newblock Classical, nonlocal, and fractional diffusion equations on bounded
+	domains.
+	\newblock {\em International Journal for Multiscale Computational Engineering},
+	9(6), 2011.
+	
+	\bibitem{NM-Desai}
+	Prathamesh Desai.
+	\newblock Tribosurface interactions involving particulate media with
+	dem-calibrated properties: Experiments and modeling.
+	\newblock 2017.
+	
+	\bibitem{NM-Desai2}
+	Prathamesh~S Desai, Akash Mehta, Patrick~SM Dougherty, and Fred~C Higgs.
+	\newblock A rheometry based calibration of a first-order dem model to generate
+	virtual avatars of metal additive manufacturing (am) powders.
+	\newblock {\em Powder technology}, 342:441--456, 2019.
+	
+	\bibitem{Diehl}
+	P~Diehl, R~Lipton, and MA~Schweitzer.
+	\newblock Numerical verification of a bond-based softening peridynamic model
+	for small displacements: Deducing material parameters from classical linear
+	theory.
+	\newblock 2016.
+	
+	\bibitem{NM-Dosta}
+	Maksym Dosta, Steven Dale, Sergiy Antonyuk, Carl Wassgren, Stefan Heinrich, and
+	James~D Litster.
+	\newblock Numerical and experimental analysis of influence of granule
+	microstructure on its compression breakage.
+	\newblock {\em Powder technology}, 299:87--97, 2016.
+	
+	\bibitem{du2012analysis}
+	Qiang Du, Max Gunzburger, Richard~B Lehoucq, and Kun Zhou.
+	\newblock Analysis and approximation of nonlocal diffusion problems with volume
+	constraints.
+	\newblock {\em SIAM review}, 54(4):667--696, 2012.
+	
+	\bibitem{engwer2017structured}
+	Christian Engwer, Christian Stinner, and Christina Surulescu.
+	\newblock On a structured multiscale model for acid-mediated tumor invasion:
+	the effects of adhesion and proliferation.
+	\newblock {\em Mathematical Models and Methods in Applied Sciences},
+	27(07):1355--1390, 2017.
+	
+	\bibitem{CMPer-Ghajari}
+	M~Ghajari, L~Iannucci, and P~Curtis.
+	\newblock A peridynamic material model for the analysis of dynamic crack
+	propagation in orthotropic media.
+	\newblock {\em Computer Methods in Applied Mechanics and Engineering},
+	276:431--452, 2014.
+	
+	\bibitem{NM-Gladkyy}
+	Anton Gladkyy and Meinhard Kuna.
+	\newblock Dem simulation of polyhedral particle cracking using a combined
+	mohr--coulomb--weibull failure criterion.
+	\newblock {\em Granular Matter}, 19(3):41, 2017.
+	
+	\bibitem{HaBobaru}
+	Youn~Doh Ha and Florin Bobaru.
+	\newblock Studies of dynamic crack propagation and crack branching with
+	peridynamics.
+	\newblock {\em International Journal of Fracture}, 162(1-2):229--244, 2010.
+	
+	\bibitem{Heller2017}
+	Thomas Heller, Patrick Diehl, Zachary Byerly, John Biddiscombe, and Hartmut
+	Kaiser.
+	\newblock {HPX -- An open source C++ Standard Library for Parallelism and
+		Concurrency}.
+	\newblock In {\em {Proceedings of OpenSuCo 2017, Denver , Colorado USA,
+			November 2017 (OpenSuCo’17)}}, page~5, 2017.
+	
+	\bibitem{CMPer-JhaLipton2}
+	Prashant~K. Jha and Robert Lipton.
+	\newblock Numerical convergence of nonlinear nonlocal continuum models to local
+	elastodynamics.
+	\newblock {\em International Journal for Numerical Methods in Engineering},
+	114(13):1389--1410, 2018.
+	
+	\bibitem{CMPer-JhaLipton5}
+	Prashant~K Jha and Robert Lipton.
+	\newblock Numerical convergence of finite difference approximations for state
+	based peridynamic fracture models.
+	\newblock {\em Computer Methods in Applied Mechanics and Engineering},
+	351:184--225, July 2019.
+	
+	\bibitem{kaiser2014hpx}
+	Hartmut Kaiser, Thomas Heller, Bryce Adelstein-Lelbach, Adrian Serio, and
+	Dietmar Fey.
+	\newblock Hpx: A task based programming model in a global address space.
+	\newblock In {\em Proceedings of the 8th International Conference on
+		Partitioned Global Address Space Programming Models}, page~6. ACM, 2014.
+	
+	\bibitem{CMPer-Lipton2}
+	Robert Lipton, Stewart Silling, and Richard Lehoucq.
+	\newblock Complex fracture nucleation and evolution with nonlocal
+	elastodynamics.
+	\newblock {\em arXiv preprint arXiv:1602.00247}, 2016.
+	
+	\bibitem{NM-Lobo}
+	Sebastian Lobo-Guerrero and Luis~E Vallejo.
+	\newblock Discrete element method evaluation of granular crushing under direct
+	shear test conditions.
+	\newblock {\em Journal of Geotechnical and Geoenvironmental Engineering},
+	131(10):1295--1300, 2005.
+	
+	\bibitem{CMPer-Silling5}
+	SA~Silling, O~Weckner, E~Askari, and Florin Bobaru.
+	\newblock Crack nucleation in a peridynamic solid.
+	\newblock {\em International Journal of Fracture}, 162(1-2):219--227, 2010.
+	
+	\bibitem{stinner2014global}
+	Christian Stinner, Christina Surulescu, and Michael Winkler.
+	\newblock Global weak solutions in a pde-ode system modeling multiscale cancer
+	cell invasion.
+	\newblock {\em SIAM Journal on Mathematical Analysis}, 46(3):1969--2007, 2014.
+	
+	\bibitem{tabbal2011preliminary}
+	Alexandre Tabbal, Matthew Anderson, Maciej Brodowicz, Hartmut Kaiser, and
+	Thomas Sterling.
+	\newblock Preliminary design examination of the parallex system from a software
+	and hardware perspective.
+	\newblock {\em ACM SIGMETRICS Performance Evaluation Review}, 38(4):81--87,
+	2011.
+	
+	\bibitem{cxx11_standard}
+	{The C++ Standards Committee}.
+	\newblock {ISO International Standard ISO/IEC 14882:2011, Programming Language
+		C++}.
+	\newblock Technical report, {Geneva, Switzerland: International Organization
+		for Standardization (ISO).}, 2011.
+	\newblock \url{http://www.open-std.org/jtc1/sc22/wg21}.
+	
+	\bibitem{cxx17_standard}
+	{The C++ Standards Committee}.
+	\newblock {ISO International Standard ISO/IEC 14882:2017, Programming Language
+		C++}.
+	\newblock Technical report, {Geneva, Switzerland: International Organization
+		for Standardization (ISO).}, 2017.
+	\newblock \url{http://www.open-std.org/jtc1/sc22/wg21}.
+	
+	\bibitem{NM-Zhu}
+	F~Zhu and J~Zhao.
+	\newblock A peridynamic investigation on crushing of sand particles.
+	\newblock {\em G{\'e}otechnique}, 69(6):526--540, 2018.
+	
+\end{thebibliography}
+
 
 \end{document}
