@@ -114,7 +114,7 @@ public:
     {
         double temp = 0.0;
         long len_line = 0;
-        // std::cout<<std::max((long)0,pos_x-eps) << " "<< std::min(pos_x+eps,nx-1) <<"\n";
+
         for(long i = std::max((long)0,pos_x-eps); i <= std::min(pos_x+eps,nx-1); ++i)
         {
             len_line = len_1d_line(std::abs((long)pos_x - (long)i));
@@ -124,6 +124,7 @@ public:
                                 * (S[current][i][j] - S[current][pos_x][pos_y]);
             }
         }
+        
         temp *= ((1 / (pow(eps*dh,4))) * (dh * dh));
         return temp;
     }
