@@ -122,9 +122,7 @@ public:
             {
                 temp += influence_function(distance(pos_x, pos_y, i, j))
                                 * (S[current][i][j] - S[current][pos_x][pos_y]);
-                // std::cout << temp <<" ";
             }
-            // std::cout<<"\n";
         }
         temp *= ((1 / (pow(eps*dh,4))) * (dh * dh));
         return temp;
@@ -149,7 +147,6 @@ public:
 
         }
 
-        // std::cout<<"\n" << sum_local(0,0) << "\n";
         // Return the solution at time-step 'nt'.
         return S[nt % 2];
     }
