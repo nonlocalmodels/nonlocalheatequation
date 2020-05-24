@@ -18,6 +18,6 @@ if(BUILD_PROJECT_DESCRIPTION)
 endif()
 
 find_package(HPX REQUIRED)
-add_hpx_executable(1d_nonlocal_serial
-    SOURCES ./src/1d_nonlocal_serial.cpp
+add_hpx_executable(2d_nonlocal_serial
+    SOURCES ./src/2d_nonlocal_serial.cpp
     COMPONENT_DEPENDENCIES iostreams)

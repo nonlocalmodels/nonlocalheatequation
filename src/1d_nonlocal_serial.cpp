@@ -38,11 +38,11 @@ public:
     //nx = number of data points
     //nt = number of timesteps
     //eps = Epsilon for influence zone of a point
-    std::size_t nx, nt, eps;
+    long nx, nt, eps;
     bool current, next;
 
     //constructor to initialize class variables
-    solver(std::size_t nx, std::size_t nt, std::size_t eps)
+    solver(long nx, long nt, long eps)
     {
         this->nx = nx;
         this->nt = nt;
@@ -67,7 +67,7 @@ public:
     //default init for space
     void default_init()
     {
-        for(std::size_t i = 0; i < nx; ++i)
+        for(long i = 0; i < nx; ++i)
         {
             S[0][i] = i;
         }
@@ -80,10 +80,10 @@ public:
     }
 
     // Our operator
-    double sum_local(std::size_t position)
+    double sum_local(long position)
     {
         double temp = 0.0;
-        for(std::size_t i = std::max((std::size_t)0,position-eps); i <= std::min(position+eps,nx-1); ++i)
+        for(long i = std::max((long)0,position-eps); i <= std::min(position+eps,nx-1); ++i)
         {
             temp += influence_function(std::abs((long)position - (long)i)) 
                         * (1 / (pow(eps*dx,4))) 
@@ -94,15 +94,15 @@ public:
     }
 
     // do all the work on 'nx' data points for 'nt' time steps
-    space do_work(std::size_t nx, std::size_t nt)
+    space do_work(long nx, long nt)
     {
         // Actual time step loop
-        for (std::size_t t = 0; t < nt; ++t)
+        for (long t = 0; t < nt; ++t)
         {
             current = t % 2;
             next = (t + 1) % 2;
 
-            for (std::size_t i = 0; i < nx; ++i)
+            for (long i = 0; i < nx; ++i)
                 S[next][i] = S[current][i] + (sum_local(i) * dt);
 
         }
@@ -144,7 +144,7 @@ int hpx_main(hpx::program_options::variables_map& vm)
     // Print the final solution
     if (vm.count("results"))
     {
-        for (std::size_t i = 0; i < nx; ++i)
+        for (long i = 0; i < nx; ++i)
             std::cout << "S[" << i << "] = " << solution[i] << std::endl;
     }
 

@@ -21,6 +21,7 @@ void print_time_results(
   , std::uint64_t num_os_threads
   , std::uint64_t elapsed
   , std::uint64_t nx
+  , std::uint64_t ny
   , std::uint64_t np
   , std::uint64_t nt
   , bool header
@@ -47,6 +48,7 @@ void print_time_results(
     std::uint64_t num_os_threads
   , std::uint64_t elapsed
   , std::uint64_t nx
+  , std::uint64_t ny
   , std::uint64_t np
   , std::uint64_t nt
   , bool header
@@ -71,19 +73,42 @@ void print_time_results(
     std::uint64_t num_os_threads
   , std::uint64_t elapsed
   , std::uint64_t nx
+  , std::uint64_t ny
   , std::uint64_t nt
   , bool header
     )
 {
     if (header)
-        std::cout << "OS_Threads,Execution_Time_sec,"
-                "Grid_Points,Time_Steps\n"
+        std::cout << "OS_Threads,       Execution_Time_sec,"
+                "       x dimension,        y dimension,        Time_Steps\n"
+             << std::flush;
+
+    std::string const threads_str = hpx::util::format("{},", num_os_threads);
+    std::string const nx_str = hpx::util::format("{},", nx);
+    std::string const ny_str = hpx::util::format("{},", ny);
+    std::string const nt_str = hpx::util::format("{} ", nt);
+
+    hpx::util::format_to(std::cout, "{:-21} {:10.12},        {:-21} {:-21} {:-21}\n",
+        threads_str, elapsed / 1e9, nx_str, ny_str, nt_str) << std::flush;
+}
+
+void print_time_results(
+    std::uint64_t num_os_threads
+  , std::uint64_t elapsed
+  , std::uint64_t nx
+  , std::uint64_t nt
+  , bool header
+    )
+{
+    if (header)
+        std::cout << "OS_Threads,       Execution_Time_sec,"
+                "       x dimension,        y dimension,        Time_Steps\n"
              << std::flush;
 
     std::string const threads_str = hpx::util::format("{},", num_os_threads);
     std::string const nx_str = hpx::util::format("{},", nx);
     std::string const nt_str = hpx::util::format("{} ", nt);
 
-    hpx::util::format_to(std::cout, "{:-21} {:10.12}, {:-21} {:-21}\n",
+    hpx::util::format_to(std::cout, "{:-21} {:10.12},        {:-21} {:-21}\n",
         threads_str, elapsed / 1e9, nx_str, nt_str) << std::flush;
 }
