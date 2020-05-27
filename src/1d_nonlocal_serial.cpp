@@ -1,5 +1,5 @@
-//  Copyright (c) 2020 Hartmut Kaiser
-//  Copyright (c) 2020 Patricia Grubel
+//  Copyright (c) 2014 Hartmut Kaiser
+//  Copyright (c) 2014 Patricia Grubel
 //  Copyright (c) 2020 Pranav Gadikar
 //
 //  SPDX-License-Identifier: BSL-1.0
@@ -76,7 +76,7 @@ public:
     //our influence function
     static double influence_function(double distance)
     {
-        return 1.0;
+        return 0.4;
     }
 
     // Our operator
