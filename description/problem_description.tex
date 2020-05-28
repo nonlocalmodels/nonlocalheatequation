@@ -121,7 +121,7 @@ Let $u:I \times D\cup D_c \to \R$ is a temperature field. Let $J:\R \to \R$ be p
 
 $u(t,x)$ satisfies following nonlocal diffusion equation, $\forall x\in D \text{ and } \forall t \in I$,
 \begin{align}\label{eq:diff eqn}
-\dfrac{\partial }{\partial t} u(t,x) &= \dfrac{1}{\epsilon^4} \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy .
+\dfrac{\partial }{\partial t} u(t,x) &= c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy .
 \end{align}
 Initial condition is given by
 \begin{align}\label{eq:ic}
@@ -130,6 +130,28 @@ u(0,x) = u_0(x) \qquad \forall x\in D
 and boundary condition is given by
 \begin{align} \label{eq:bc}
 u(t,x) = 0 \qquad \forall x\in D_c \text{ and } \forall t\in I.
+\end{align}
+
+Constant $c$ is chosen such that in the limit $\epsilon\to 0$ the nonlocal operator in right-hand side of \autoref{eq:diff eqn}. goes to $k\nabla \cdot \nabla u$. Local diffusion equation is given by
+\begin{align}\label{eq:locdiff}
+\dfrac{\partial }{\partial t} u(t,x) &= k \nabla \cdot \nabla u(t,x),
+\end{align}
+where $k$ is the diffusivity constant. Boundary condition is $u = 0$ on $\partial D$ (consistent with boundary condition in \autoref{eq:bc} and initial condition is $u(0,x) = u_0(x)$. Constant $c$ is taken as
+\begin{align}\label{eq:constc}
+c &:= \begin{cases}
+\frac{k}{\epsilon^3 M_2}, \qquad \text{when dimension }d=1 \\
+\frac{k}{\pi\epsilon^4 M_3}, \qquad \text{when dimension }d=2,
+\end{cases}
+\end{align}
+where 
+\begin{align}\label{eq:momentJ}
+M_i = \int_0^1 J(r) r^i dr.
+\end{align}
+For standard influence functions, $M_i$ can be computed easily. For example, when $J = 1$, $M_i = 1/(i+1)$, when $J = 1- r$, $M_2 = 1/12, M_3 = 1/20$, etc.
+
+With choice of constant $c$ in \autoref{eq:constc}, it can be shown formally that
+\begin{align}\label{eq:limit}
+c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy \to k \nabla \cdot \nabla u(t,x).
 \end{align}
 
 % Insert the algorithm
@@ -155,7 +177,7 @@ u(t,x) = 0 \qquad \forall x\in D_c \text{ and } \forall t\in I.
 				\STATE $val\_i = 0$
 				\FOR {each integer $j\in$ neighborList$[i]$}
 					\STATE $val\_i = val\_i + $					
-					\STATE $\quad \frac{1}{\epsilon^4} J(|x_j - x_i|/\epsilon) (U[j] - U[i])V_j$
+					\STATE $\quad c J(|x_j - x_i|/\epsilon) (U[j] - U[i])V_j$
 				\ENDFOR
 				\STATE \textcolor{mygray}{\it $\%$ Update temperature}
 				\STATE $U[i] = U[i] + \Delta t \times val\_i$
@@ -173,7 +195,7 @@ We consider index set $K \subset \Z^2$ such that for $i\in K$, $x_i = h i \in D$
 
 Let $\hat{u}^k_i$ be the solution of forward Euler discretization in time. It satisfies,$\forall 1\leq k \leq T/\Delta t, \forall i \in K$,
 \begin{align}\label{eq:forward fd}
-\dfrac{\hat{u}^{k+1}_i - \hat{u}^k_i}{\Delta t} = \dfrac{1}{\epsilon^4} \sum_{\substack{j \in K\cup K_c,\\
+\dfrac{\hat{u}^{k+1}_i - \hat{u}^k_i}{\Delta t} = c \sum_{\substack{j \in K\cup K_c,\\
 |x_j-x_i| \leq \epsilon}} J(|x_j - x_i|/\epsilon) (\hat{u}^k_j - \hat{u}^k_i) V_j
 \end{align}
 and
@@ -218,7 +240,7 @@ Algorithm for  serial implementation is given in \sref{Algorithm}{alg:serial}. F
 				\STATE $val\_i = 0$
 				\FOR {each integer $j\in$ neighborList$[i]$}
 					\STATE $val\_i = val\_i + $
-					\STATE $\quad +  \frac{1}{\epsilon^4} J(|x_j - x_i|/\epsilon) (U[j] - U[i])V_j$
+					\STATE $\quad +  c J(|x_j - x_i|/\epsilon) (U[j] - U[i])V_j$
 				\ENDFOR
 				\STATE \textcolor{mygray}{\it $\%$ Update temperature}
 				\STATE $U[i] = U[i] + \Delta t \times val\_i$
@@ -240,7 +262,7 @@ Given $N$ number of computational nodes, mesh will be partitioned in $N$ parts s
 
 In \autoref{fig:mesh partition}, the mesh is colored to show the partition. Consider part of mesh colored as green. Let us suppose the id of computer who owns the green, blue, yellow, and red are 1, 2, 3, and 4 respectively. We now focus on one computational node, say green, and present two possible situations.
 
-\textbf{Case 1: }Consider mesh node $x_i$ which belongs to computer 1's partition. Let us suppose that $x_i$ is within the dashed line, see \autoref{fig:green case 1}. For such $x_i$, all mesh nodes $x_j \in H_\epsilon(x_i)$  will be within the green partition. Since computer 1 owns the mesh data of green partition, calculation of right hand side of \autoref{eq:forward fd}, i.e. $\dfrac{1}{\epsilon^4} J(|x_j - x_i|/\epsilon)(\hat{u}^k_j - \hat{u}^k_i)V_j$, can be carried out without needing to interact with other computers. 
+\textbf{Case 1: }Consider mesh node $x_i$ which belongs to computer 1's partition. Let us suppose that $x_i$ is within the dashed line, see \autoref{fig:green case 1}. For such $x_i$, all mesh nodes $x_j \in H_\epsilon(x_i)$  will be within the green partition. Since computer 1 owns the mesh data of green partition, calculation of right hand side of \autoref{eq:forward fd}, i.e. $c J(|x_j - x_i|/\epsilon)(\hat{u}^k_j - \hat{u}^k_i)V_j$, can be carried out without needing to interact with other computers. 
 
 \begin{figure}[ht]
 \centering
@@ -341,7 +363,7 @@ Consider \sref{Algorithm}{alg:parallel} which outlines the steps needed to run t
 						\STATE
 						\STATE \textcolor{mygray}{\it $\%$ compute contribution}
 						\STATE $val\_i = val\_i $
-						\STATE $\quad +  \dfrac{1}{\epsilon^4} J(|x_j - x_i|/\epsilon)$
+						\STATE $\quad +  c J(|x_j - x_i|/\epsilon)$
 						\STATE $\quad (U[j] - U[i])V_j$
 					\ELSE 
 						\STATE \textcolor{mygray}{\it $\%$ this mesh node is outside dashed line}
@@ -356,7 +378,7 @@ Consider \sref{Algorithm}{alg:parallel} which outlines the steps needed to run t
 						\STATE
 						\STATE \textcolor{mygray}{\it $\%$ compute contribution}
 						\STATE $val\_i = val\_i $
-						\STATE $\quad +  \dfrac{1}{\epsilon^4} J(|x_j - x_i|/\epsilon)$
+						\STATE $\quad +  c J(|x_j - x_i|/\epsilon)$
 						\STATE $\quad (t\_j - U[i])V_j$	
 					\ENDIF
 				\ENDFOR
@@ -368,6 +390,30 @@ Consider \sref{Algorithm}{alg:parallel} which outlines the steps needed to run t
 		\ENDFOR
 	\end{algorithmic}
 \end{algorithm}
+
+\section{Constructing exact solution}
+In this section we show how to construct exact solution to test the numerical results. Recall that nonlocal diffusion equation is given by 
+\begin{align*}
+\dfrac{\partial }{\partial t} u(t,x) &= c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy ,
+\end{align*}
+where $u$ is the temperature field, $c$ is a constant given by \autoref{eq:constc}. $u$ satisfies boundary condition \autoref{eq:bc} and initial condition \autoref{eq:ic}. We modify above equation to include the external source $b$:
+\begin{align}\label{eq:diff eqn 2}
+\dfrac{\partial }{\partial t} u(t,x) &= c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy + b(t,x).
+\end{align}
+
+\subsection{One dimension}
+Let $$w(t,x) = \cos(2\pi t) \sin(2\pi x)$$ when $x\in [0,1]$ and $w(t,x) = 0$ when $x\notin [0,1]$. We want solution of \autoref{eq:diff eqn 2} $u$ to be equal to $w$, i.e., $u = w$. To achieve this we substitute 
+\begin{align}\label{eq:source exact}
+b(t,x) = \dfrac{\partial }{\partial t} w(t,x) -  c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (w(t,y) - w(t,x)) dy 
+\end{align}
+in \autoref{eq:diff eqn 2} and prescribe $u(0,x) = w(0,x) = \sin(2\pi x)$ as initial condition on $u$ and $u(t,x) = 0$ on $x\in D_c$ as boundary condition. 
+
+\subsection{Two dimension}
+Let $$w(t,x) = \cos(2\pi t) \sin(2\pi x_1)  \sin(2\pi x_2)$$ when $x\in [0,1]^2$ and $w(t,x) = 0$ when $x\notin [0,1]^2$. We want solution of \autoref{eq:diff eqn 2} $u$ to be equal to $w$, i.e., $u = w$. To achieve this we substitute 
+\begin{align}\label{eq:source exact}
+b(t,x) = \dfrac{\partial }{\partial t} w(t,x) -  c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (w(t,y) - w(t,x)) dy 
+\end{align}
+in \autoref{eq:diff eqn 2} and prescribe $$u(0,x) = w(0,x) = \sin(2\pi x_1)\sin(2\pi x_2)$$ as initial condition on $u$ and $u(t,x) = 0$ on $x\in D_c$ as boundary condition. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% References
