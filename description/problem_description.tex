@@ -38,6 +38,8 @@ naturalnames,colorlinks=true,linkcolor=blue,bookmarks]{hyperref}
 \makeatother
 
 \usepackage{placeins}
+
+\usepackage{appendix} % for adding appendix
  	
 \theoremstyle{definition}
 \newtheorem{theorem}{Theorem}[section]
@@ -60,6 +62,12 @@ naturalnames,colorlinks=true,linkcolor=blue,bookmarks]{hyperref}
 \newcommand{\sref}[2]{\hyperref[#2]{#1 \ref*{#2}}}
 \newcommand{\R}{\mathbf{R}}  % The real numbers.
 \newcommand{\Z}{\mathbf{Z}}  % The integer numbers.
+\newcommand{\calL}{\mathcal{L}}  % The integer numbers.
+
+
+\newcommand{\bcolon}{\boldsymbol{:}}
+\newcommand{\dyad}{\mathbf{\otimes}}
+
 
 
 % Algorithmic modifications
@@ -121,9 +129,10 @@ Let $u:I \times D\cup D_c \to \R$ is a temperature field. Let $J:\R \to \R$ be p
 
 $u(t,x)$ satisfies following nonlocal diffusion equation, $\forall x\in D \text{ and } \forall t \in I$,
 \begin{align}\label{eq:diff eqn}
-\dfrac{\partial }{\partial t} u(t,x) &= c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy .
+\partial_t u(t,x) &=  b(t,x) \notag \\
+&\,+ c \int_{H_\epsilon(x)} J(\frac{|y-x|}{\epsilon}) (u(t,y) - u(t,x)) dy,
 \end{align}
-Initial condition is given by
+where $b(t,x)$ is the external source at time $t$ and at point $x$ (this is a known function of space and time). Initial condition is given by
 \begin{align}\label{eq:ic}
 u(0,x) = u_0(x) \qquad \forall x\in D
 \end{align}
@@ -134,13 +143,13 @@ u(t,x) = 0 \qquad \forall x\in D_c \text{ and } \forall t\in I.
 
 Constant $c$ is chosen such that in the limit $\epsilon\to 0$ the nonlocal operator in right-hand side of \autoref{eq:diff eqn}. goes to $k\nabla \cdot \nabla u$. Local diffusion equation is given by
 \begin{align}\label{eq:locdiff}
-\dfrac{\partial }{\partial t} u(t,x) &= k \nabla \cdot \nabla u(t,x),
+\partial_t u(t,x) &= k \nabla \cdot \nabla u(t,x),
 \end{align}
 where $k$ is the diffusivity constant. Boundary condition is $u = 0$ on $\partial D$ (consistent with boundary condition in \autoref{eq:bc} and initial condition is $u(0,x) = u_0(x)$. Constant $c$ is taken as
 \begin{align}\label{eq:constc}
 c &:= \begin{cases}
 \frac{k}{\epsilon^3 M_2}, \qquad \text{when dimension }d=1 \\
-\frac{k}{\pi\epsilon^4 M_3}, \qquad \text{when dimension }d=2,
+\frac{2k}{\pi\epsilon^4 M_3}, \qquad \text{when dimension }d=2,
 \end{cases}
 \end{align}
 where 
@@ -149,9 +158,9 @@ M_i = \int_0^1 J(r) r^i dr.
 \end{align}
 For standard influence functions, $M_i$ can be computed easily. For example, when $J = 1$, $M_i = 1/(i+1)$, when $J = 1- r$, $M_2 = 1/12, M_3 = 1/20$, etc.
 
-With choice of constant $c$ in \autoref{eq:constc}, it can be shown formally that
+With choice of constant $c$ in \autoref{eq:constc}, it can be shown formally (see \autoref{s:converge}) that
 \begin{align}\label{eq:limit}
-c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy \to k \nabla \cdot \nabla u(t,x).
+c \int_{H_\epsilon(x)}  J(\frac{|y-x|}{\epsilon}) (u(t,y) - u(t,x)) dy \to k \nabla \cdot \nabla u(t,x).
 \end{align}
 
 % Insert the algorithm
@@ -179,8 +188,10 @@ c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy \to k \nabla \cdot
 					\STATE $val\_i = val\_i + $					
 					\STATE $\quad c J(|x_j - x_i|/\epsilon) (U[j] - U[i])V_j$
 				\ENDFOR
+				\STATE \textcolor{mygray}{\it $\%$ get external source}
+				\STATE $b\_i = b(t^k, x_i)$
 				\STATE \textcolor{mygray}{\it $\%$ Update temperature}
-				\STATE $U[i] = U[i] + \Delta t \times val\_i$
+				\STATE $U[i] = U[i] + \Delta t \times val\_i + \Delta t \times b\_i$
 			\ENDFOR	
 			\STATE \textcolor{mygray}{\it $\%$ Output temperature at time $t^k = k\Delta t$}
 			\STATE Output($U$)
@@ -188,14 +199,15 @@ c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy \to k \nabla \cdot
 	\end{algorithmic}
 \end{algorithm}
 
-\section{Finite difference approximation}
+\section{Finite difference approximation}\label{s:fd}
 Consider uniform mesh $D_h = (D\cup D_c)\cap (h\Z)^2$ of mesh size $h >0$, see \autoref{fig:mesh fd}. $\Z$ is the set of positive and negative integers. Let $\Delta t$ is size of time step and $[0,T]\cap (\Delta t \Z)$ be the discretization of time domain. We assume $\epsilon = m h$ where $m\geq 1$ is some integer.
 
 We consider index set $K \subset \Z^2$ such that for $i\in K$, $x_i = h i \in D$. Similarly, consider index set $K_c \subset \Z^2$ such that for $i\in K_c$, $x_i = h i \in D_c$.
 
 Let $\hat{u}^k_i$ be the solution of forward Euler discretization in time. It satisfies,$\forall 1\leq k \leq T/\Delta t, \forall i \in K$,
 \begin{align}\label{eq:forward fd}
-\dfrac{\hat{u}^{k+1}_i - \hat{u}^k_i}{\Delta t} = c \sum_{\substack{j \in K\cup K_c,\\
+\dfrac{\hat{u}^{k+1}_i - \hat{u}^k_i}{\Delta t} &= b(t^k, x_i) \notag \\
+&+ c \sum_{\substack{j \in K\cup K_c,\\
 |x_j-x_i| \leq \epsilon}} J(|x_j - x_i|/\epsilon) (\hat{u}^k_j - \hat{u}^k_i) V_j
 \end{align}
 and
@@ -242,8 +254,10 @@ Algorithm for  serial implementation is given in \sref{Algorithm}{alg:serial}. F
 					\STATE $val\_i = val\_i + $
 					\STATE $\quad +  c J(|x_j - x_i|/\epsilon) (U[j] - U[i])V_j$
 				\ENDFOR
+				\STATE \textcolor{mygray}{\it $\%$ get external source}
+				\STATE $b\_i = b(t^k, x_i)$
 				\STATE \textcolor{mygray}{\it $\%$ Update temperature}
-				\STATE $U[i] = U[i] + \Delta t \times val\_i$
+				\STATE $U[i] = U[i] + \Delta t \times val\_i + \Delta t \times b\_i$
 			\EndHloop	
 			\STATE \textcolor{mygray}{\it $\%$ Output temperature at time $t^k = k\Delta t$}
 			\STATE Output($U$)
@@ -345,7 +359,7 @@ Consider \sref{Algorithm}{alg:parallel} which outlines the steps needed to run t
 			\ENDFOR
 			\algstore{myalg}
 	\end{algorithmic}
-\end{algorithm}			
+\end{algorithm}
 
 \begin{algorithm}
 	\begin{algorithmic}[1]
@@ -382,38 +396,16 @@ Consider \sref{Algorithm}{alg:parallel} which outlines the steps needed to run t
 						\STATE $\quad (t\_j - U[i])V_j$	
 					\ENDIF
 				\ENDFOR
+				\STATE \textcolor{mygray}{\it $\%$ get external source}
+				\STATE $b\_i = b(t^k, x_i)$
 				\STATE \textcolor{mygray}{\it $\%$ Update temperature}
-				\STATE $U[i] = U[i] + \Delta t \times val\_i$
+				\STATE $U[i] = U[i] + \Delta t \times val\_i + \Delta t \times b\_i$
 			\EndHloop	
 			\STATE \textcolor{mygray}{\it $\%$ Output temperature at time $t^k = k\Delta t$}
 			\STATE Output($U$)
 		\ENDFOR
 	\end{algorithmic}
 \end{algorithm}
-
-\section{Constructing exact solution}
-In this section we show how to construct exact solution to test the numerical results. Recall that nonlocal diffusion equation is given by 
-\begin{align*}
-\dfrac{\partial }{\partial t} u(t,x) &= c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy ,
-\end{align*}
-where $u$ is the temperature field, $c$ is a constant given by \autoref{eq:constc}. $u$ satisfies boundary condition \autoref{eq:bc} and initial condition \autoref{eq:ic}. We modify above equation to include the external source $b$:
-\begin{align}\label{eq:diff eqn 2}
-\dfrac{\partial }{\partial t} u(t,x) &= c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (u(t,y) - u(t,x)) dy + b(t,x).
-\end{align}
-
-\subsection{One dimension}
-Let $$w(t,x) = \cos(2\pi t) \sin(2\pi x)$$ when $x\in [0,1]$ and $w(t,x) = 0$ when $x\notin [0,1]$. We want solution of \autoref{eq:diff eqn 2} $u$ to be equal to $w$, i.e., $u = w$. To achieve this we substitute 
-\begin{align}\label{eq:source exact}
-b(t,x) = \dfrac{\partial }{\partial t} w(t,x) -  c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (w(t,y) - w(t,x)) dy 
-\end{align}
-in \autoref{eq:diff eqn 2} and prescribe $u(0,x) = w(0,x) = \sin(2\pi x)$ as initial condition on $u$ and $u(t,x) = 0$ on $x\in D_c$ as boundary condition. 
-
-\subsection{Two dimension}
-Let $$w(t,x) = \cos(2\pi t) \sin(2\pi x_1)  \sin(2\pi x_2)$$ when $x\in [0,1]^2$ and $w(t,x) = 0$ when $x\notin [0,1]^2$. We want solution of \autoref{eq:diff eqn 2} $u$ to be equal to $w$, i.e., $u = w$. To achieve this we substitute 
-\begin{align}\label{eq:source exact}
-b(t,x) = \dfrac{\partial }{\partial t} w(t,x) -  c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (w(t,y) - w(t,x)) dy 
-\end{align}
-in \autoref{eq:diff eqn 2} and prescribe $$u(0,x) = w(0,x) = \sin(2\pi x_1)\sin(2\pi x_2)$$ as initial condition on $u$ and $u(t,x) = 0$ on $x\in D_c$ as boundary condition. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% References
@@ -596,6 +588,130 @@ in \autoref{eq:diff eqn 2} and prescribe $$u(0,x) = w(0,x) = \sin(2\pi x_1)\sin(
 	\newblock {\em G{\'e}otechnique}, 69(6):526--540, 2018.
 	
 \end{thebibliography}
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{appendices}
+\section{Constructing exact solution}
+The idea is to use source term $b$ to construct the analytical solution. This is shown next.
+
+\subsection{One dimension}
+Let $$w(t,x) = \cos(2\pi t) \sin(2\pi x)$$ when $x\in [0,1]$ and $w(t,x) = 0$ when $x\notin [0,1]$. We want solution of \autoref{eq:diff eqn} $u$ to be equal to $w$, i.e., $u = w$. To achieve this we substitute 
+\begin{align}\label{eq:source exact 1d}
+b(t,x) &= \partial_t w(t,x) \notag \\
+&\,-  c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (w(t,y) - w(t,x)) dy 
+\end{align}
+in \autoref{eq:diff eqn} and prescribe $u(0,x) = w(0,x) = \sin(2\pi x)$ as initial condition on $u$ and $u(t,x) = 0$ on $x\in D_c$ as boundary condition. Note that $$ \partial_t w(t,x) = -2\pi \sin(2\pi t) \sin(2\pi x) $$ when $x\in [0,1]$ and $\partial_t w(t,x) = 0$ when $x\notin [0,1]$.
+
+\subsection{Two dimension}
+Let $$w(t,x) = \cos(2\pi t) \sin(2\pi x_1)  \sin(2\pi x_2)$$ when $x\in [0,1]^2$ and $w(t,x) = 0$ when $x\notin [0,1]^2$. We substitute 
+\begin{align}\label{eq:source exact 2d}
+b(t,x) &= \partial_t w(t,x) \notag \\
+&\, -  c \int_{H_\epsilon(x)} J(|y-x|/\epsilon) (w(t,y) - w(t,x)) dy 
+\end{align}
+in \autoref{eq:diff eqn} and prescribe $$u(0,x) = w(0,x) = \sin(2\pi x_1)\sin(2\pi x_2)$$ as initial condition on $u$ and $u(t,x) = 0$ on $x\in D_c$ as boundary condition. 
+
+To obtain numerical solution $\hat{u}^k_i$ following discretization \autoref{eq:forward fd}, we essentially have to compute source $b$ at time $t=t^k = k\Delta t$ and point $x = x_i = ih$ using the formula \autoref{eq:source exact 1d} (in 1-d simulation) and \autoref{eq:source exact 2d} (in 2-d simulation).
+
+\subsection{Numerical discretization error}
+Suppose $\bar{u}(t,x)$ is the exact solution and $\hat{u}^k_i$ for $0\leq k \leq T/\Delta t$ and $i\in K$ is the numerical solution. The total error at time $t^k$ is taken as
+\begin{align}\label{eq:err}
+e^k &:= h^d \sum_{i\in K} |\bar{u}(t^k, x_i) - \hat{u}^k_i|^2,
+\end{align}
+where $d=1,2$ is the dimension. Total error can be defined as $e:= \sum_{0\leq k\leq T/\Delta t} e^k$.
+
+
+\section{Limit of nonlocal operator to local operator in diffusion equation}\label{s:converge}
+We show through formal calculation that 
+\begin{align*}
+c \int_{H_\epsilon(x)}  J(\frac{|y-x|}{\epsilon}) (u(y) - u(x)) dy \to k \nabla \cdot \nabla u(x).
+\end{align*}
+
+Let 
+\begin{align}\label{eq:opL}
+\calL(u)(x) = c \int_{H_\epsilon(x)}  J(\frac{|y-x|}{\epsilon}) (u(y) - u(x)) dy,
+\end{align}
+where 
+\begin{align}\label{eq:constc 2}
+c &:= \begin{cases}
+\frac{k}{\epsilon^3 M_2}, \qquad \text{when dimension }d=1 \\
+\frac{2k}{\pi\epsilon^4 M_3}, \qquad \text{when dimension }d=2,
+\end{cases}
+\end{align}
+with $M_i = \int_0^1 J(r) r^i dr$. 
+
+Taylor's series approximation gives:
+\begin{align*}
+u(y) &= u(x) + \nabla u(x) \cdot (y-x) + \frac{1}{2} \nabla^2 u(x)\bcolon (y-x) \dyad (y-x) \notag \\
+&\,+ \frac{1}{6} \nabla^3 u(\xi) \bcolon (y-x)\dyad (y-x) \dyad (y-x),
+\end{align*}
+where $\xi = \xi(y,x) \in D\cup D_c$. We substitute above in \autoref{eq:opL} to get
+\begin{align*}
+&\calL(u)(x) \notag \\
+&= c \int_{H_\epsilon(x)}  J(\frac{|y-x|}{\epsilon}) \nabla u(x) \cdot (y-x) dy\notag \\
+&\, +  c \int_{H_\epsilon(x)}  J(\frac{|y-x|}{\epsilon}) \frac{1}{2} \nabla^2 u(x)\bcolon (y-x) \dyad (y-x) dy \notag \\
+&\, +  c \int_{H_\epsilon(x)}  J(\frac{|y-x|}{\epsilon}) \frac{1}{6} \nabla^3 u(\xi) \bcolon (y-x)\dyad (y-x) \dyad (y-x) dy.
+\end{align*}
+First term in above is zero as $J$ is even function of $y$ and $(y-x)$ is odd function. We consider change in variable $y = x + \epsilon \eta$ where $\eta \in H_1(0)$. Note that $dy = \epsilon^d d\eta$ where $d$ is dimension. We have
+\begin{align}\label{eq:opL2}
+&\calL(u)(x) \notag \\
+&= c \int_{H_1(0)}  J(|\eta|) \frac{1}{2} \nabla^2 u(x)\bcolon \epsilon \eta \dyad \epsilon \eta  \epsilon^d d\eta \notag \\
+&\, +  c \int_{H_1(0)}  J(|\eta|) \frac{1}{6} \nabla^3 u(\xi) \bcolon \epsilon \eta \dyad \epsilon \eta \dyad \epsilon \eta  \epsilon^d d\eta \notag \\
+&= \frac{c\epsilon^{d+2}}{2}  \nabla^2 u(x) \bcolon \left[ \int_{H_1(0)}  J(|\eta|) \eta \dyad \eta d\eta \right] \notag \\
+&\, + \frac{c\epsilon^{d+3}}{6} \int_{H_1(0)}  J(|\eta|) \nabla^3 u(\xi) \bcolon \eta \dyad\eta \dyad\eta d\eta .
+\end{align}
+Assuming $u$ is such that $|\nabla^3 u| < \infty$ at all points, third term is of the order $$O(c|\nabla^3 u| \epsilon^{d+3})$$. We analyze the term in square bracket next. 
+
+\paragraph{One dimension} When $d=1$, we have
+\begin{align}
+&\int_{H_1(0)}  J(|\eta|) \eta \dyad \eta d\eta\notag \\
+&=\int_{-1}^1 J(|\eta|) \eta^2 d\eta \notag \\
+&= 2\int_0^1 J(r) r^2 dr = 2 M_2,
+\end{align}
+where we used the fact that $J(|\eta|) \eta^2$ is even and noted the definition of moment $M_2$. Substituting this in \autoref{eq:opL2} and noting the definition of constant $c$ in \autoref{eq:constc 2}, we conclude that
+$$
+\calL(u)(x) = k \partial_{xx} u(x) + O(|\partial_{xxx}u| \epsilon).
+$$
+Taking $\epsilon \to 0$ gives $\calL(u) \to k\partial_{xx} u$.
+
+\paragraph{Two dimension} When $d=2$, we have
+\begin{align*}
+&\int_{H_1(0)}  J(|\eta|) \eta \dyad \eta d\eta\notag \\
+&=\int_0^1 \int_0^{2\pi} J(|\eta|) \eta\dyad\eta rdrd\theta \notag \\
+&= \left(\int_0^1 \int_0^{2\pi} J(|\eta|) \eta_i \eta_j rdrd\theta \right) e_i \dyad e_j.
+\end{align*}
+Where $e_1, e_2$ are basis vector in 2-d, $i,j\in \{1,2\}$, and Einstein summation is implied above. Note that in cylindrical coordinate, $\eta_1 = r\cos(\theta), \eta_2 = r\sin(\theta)$ and $|\eta| = r$. We use following trigonometric identities
+\begin{align}\label{eq:trig}
+\int_0^{2\pi} \cos^2(\theta) d\theta &= \pi, \notag \\
+\int_0^{2\pi} \sin^2(\theta) d\theta &= \pi, \notag \\
+\int_0^{2\pi} \cos(\theta) \sin(\theta) d\theta &= 0
+\end{align}
+to get 
+$$
+ \int_0^{2\pi} \eta_i \eta_j d\theta = r^2 \pi \delta_{ij}
+$$
+where $\delta_{ij} = 0$ if $i\neq j$ and $\delta_{ij} = 1$ if $i=j$. Substituting to get
+\begin{align*}
+&\int_{H_1(0)}  J(|\eta|) \eta \dyad \eta d\eta\notag \\
+&= \left(\int_0^1 J(r)  r^3 dr \right) \pi \delta_{ij} e_i \dyad e_j \notag \\
+&= \pi M_3 \delta_{ij} e_i \dyad e_j,
+\end{align*}
+Substituting this in \autoref{eq:opL2} and noting the definition of constant $c$ in \autoref{eq:constc 2}, we get
+\begin{align*}
+&\calL(u)(x) \notag \\
+&\, = \frac{c\epsilon^{4}}{2} \pi M_3 \nabla^2 u(x) \bcolon \delta_{ij} e_i \dyad e_j  + O(c|\nabla^3 u| \epsilon^5)\notag \\
+&\, =  \frac{c\epsilon^{4}}{2} \pi M_3 \nabla \cdot \nabla u(x) + O(c|\nabla^3 u| \epsilon^5),
+\end{align*}
+where we used the fact that $$\nabla^2 u(x) \bcolon \delta_{ij} e_i \dyad e_j  = \nabla \cdot \nabla u(x).$$ Substituting definition of $c$ from \autoref{eq:constc 2} to get
+$$
+\calL(u)(x) = k \nabla \cdot \nabla u(x) + O(|\nabla^3 u| \epsilon).
+$$
+Taking $\epsilon \to 0$ gives $\calL(u) \to k\nabla \cdot \nabla u$.
+
+
+
+\end{appendices}
 
 
 \end{document}
