@@ -1,0 +1,21 @@
+# Copyright (c) 2020 Patrick Diehl
+#               
+#
+# Distributed under the Boost Software License, Version 1.0. (See accompanying
+# file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+
+version: 2
+jobs:
+    build:
+        docker:
+            - image: docker.pkg.github.com/nonlocalmodels/buildinfrastructure/nonlocalmodels:baseimage
+        steps:
+            - checkout
+            - run:
+                name: Configure 
+                command: mkdir build $$ cd build |
+                  cmake -DCMAKE_BUILD_TYPE=Release ..
+            - run:
+                name: Build
+                command: make -j 2
+
