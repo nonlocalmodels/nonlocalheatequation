@@ -8,7 +8,7 @@ version: 2
 jobs:
     build:
         docker:
-            - image: docker.pkg.github.com/nonlocalmodels/buildinfrastructure/nonlocalmodels:baseimage
+            - image: diehlpk/nonlocalmodels
         steps:
             - checkout
             - run:
