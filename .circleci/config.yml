@@ -13,8 +13,9 @@ jobs:
             - checkout
             - run:
                 name: Configure 
-                command: mkdir -p build |
-                  cd build |
+                command: | 
+                  mkdir -p build 
+                  cd build 
                   cmake -DCMAKE_BUILD_TYPE=Release ..
             - run:
                 name: Build
