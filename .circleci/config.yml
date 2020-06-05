@@ -19,5 +19,7 @@ jobs:
                   cmake -DCMAKE_BUILD_TYPE=Release ..
             - run:
                 name: Build
-                command: make -j 2
+                command: |  
+                  cd build 
+                  make -j 2
 
