@@ -29,7 +29,7 @@ add_hpx_executable(2d_nonlocal_serial
 
 enable_testing()
 
-add_test(NAME Test_1d COMMAND sh -c "./1d_nonlocal_serial --test_batch < ./tests/1d.txt")
+add_test(NAME Test_1d COMMAND sh -c "./1d_nonlocal_serial --test_batch < ../tests/1d.txt")
 set_tests_properties(Test_1d
     PROPERTIES
     PASS_REGULAR_EXPRESSION "Tests Passed")
@@ -37,7 +37,7 @@ set_tests_properties(Test_1d
     PROPERTIES
     FAIL_REGULAR_EXPRESSION "Tests Failed")
 
-add_test(NAME Test_2d COMMAND sh -c "./2d_nonlocal_serial --test_batch < ./tests/2d.txt")
+add_test(NAME Test_2d COMMAND sh -c "./2d_nonlocal_serial --test_batch < ../tests/2d.txt")
 set_tests_properties(Test_2d
     PROPERTIES
     PASS_REGULAR_EXPRESSION "Tests Passed")
