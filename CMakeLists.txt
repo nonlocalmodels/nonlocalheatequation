@@ -12,6 +12,7 @@ PROJECT(Nonlocalheatequation)
 cmake_minimum_required(VERSION 3.10)
 
 SET(BUILD_PROJECT_DESCRIPTION OFF CACHE STRING "Build project description")
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
 if(BUILD_PROJECT_DESCRIPTION)
     add_subdirectory(description)
@@ -21,3 +22,25 @@ find_package(HPX REQUIRED)
 add_hpx_executable(1d_nonlocal_serial
     SOURCES ./src/1d_nonlocal_serial.cpp
     COMPONENT_DEPENDENCIES iostreams)
+
+add_hpx_executable(2d_nonlocal_serial
+    SOURCES ./src/2d_nonlocal_serial.cpp
+    COMPONENT_DEPENDENCIES iostreams)
+
+enable_testing()
+
+add_test(NAME Test_1d COMMAND sh -c "./1d_nonlocal_serial --test_batch < ./tests/1d.txt")
+set_tests_properties(Test_1d
+    PROPERTIES
+    PASS_REGULAR_EXPRESSION "Tests Passed")
+set_tests_properties(Test_1d
+    PROPERTIES
+    FAIL_REGULAR_EXPRESSION "Tests Failed")
+
+add_test(NAME Test_2d COMMAND sh -c "./2d_nonlocal_serial --test_batch < ./tests/2d.txt")
+set_tests_properties(Test_2d
+    PROPERTIES
+    PASS_REGULAR_EXPRESSION "Tests Passed")
+set_tests_properties(Test_2d
+    PROPERTIES
+    FAIL_REGULAR_EXPRESSION "Tests Failed")
