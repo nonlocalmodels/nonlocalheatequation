@@ -133,7 +133,6 @@ public:
     double sum_local(long position)
     {
         double result_local = 0.0;
-        double s_i = 0.0;
         for(long i = position-eps; i <= position+eps; ++i)
         {
             result_local += influence_function(std::abs((long)position - (long)i)) 
@@ -189,7 +188,7 @@ int batch_tester()
         solve.test_init();
         
         solve.do_work();
-        
+
         if (solve.error / (double)nx > 1e-6)
         {
             test_failed = 1;
