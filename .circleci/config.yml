@@ -22,4 +22,8 @@ jobs:
                 command: |  
                   cd build 
                   make -j 2
-
+            - run:
+                name: Test
+                command: |
+                  cd build 
+                  make test
