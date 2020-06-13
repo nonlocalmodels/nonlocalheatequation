@@ -16,6 +16,7 @@
 #include <math.h>
 #include <algorithm> 
 
+#include "point.h"
 #include "print_time_results.hpp"
 
 //mathematical constant PI
@@ -29,19 +30,28 @@ double dx = 1.;     // grid spacing
 class solver
 {
 public:
-    // Our partition type
-    typedef double partition;
+    // 3d coordinate for representation of point
+    typedef util::Point3 point_3d;
+
+    // 3d line using the 3d point representation
+    typedef std::vector<point_3d> line_3d;
+
+    // Our temperature data type
+    typedef double temperature;
 
     // Our data for one time step
-    typedef std::vector<partition> space;
+    typedef std::vector<temperature> space_1d;
 
-    //alternate for space between time steps,
-    //result of S[t%2] goes to S[(t+1)%2] at every timestep 't'
-    space S[2];
+    // alternate for space between time steps,
+    // result of S[t%2] goes to S[(t+1)%2] at every timestep 't'
+    space_1d S[2];
 
-    //nx = number of data points
-    //nt = number of timesteps
-    //eps = Epsilon for influence zone of a point
+    // vector containining 3d coordinates of the points on the line
+    line_3d P;
+
+    // nx = number of data points
+    // nt = number of timesteps
+    // eps = Epsilon for influence zone of a point
     long nx, nt, eps, c_1d;
     bool current, next, test;
     double error;
@@ -56,6 +66,12 @@ public:
         this->current = 0;
         this->error = 0.0;
         this->test = 0;
+        
+        P.resize(nx);
+        for(long sx = 0; sx < nx; ++sx)
+        {
+            P[sx] = point_3d(sx, 0, 0);
+        }
 
         for(auto &s : S)
         {
@@ -68,18 +84,18 @@ public:
     {
         std::cout << error << std::endl;
         if(cmp)
-            for(long i = 0; i < nx; ++i)
-                std::cout << "Expected: " << w(i, nt)
-                << " Actual: " << S[nt % 2][i] << std::endl;
+            for(long sx = 0; sx < nx; ++sx)
+                std::cout << "Expected: " << w(sx, nt)
+                << " Actual: " << S[nt % 2][sx] << std::endl;
     }
 
     //input the initialization 
     void input_init()
     {
         this->test = 0;
-        for(auto &i : S[0])
+        for(auto &sx : S[0])
         {
-            std::cin>>i;
+            std::cin>>sx;
         }
     }
 
@@ -87,9 +103,9 @@ public:
     void test_init()
     {
         this->test = 1;
-        for(long i = 0; i < nx; ++i)
+        for(long sx = 0; sx < nx; ++sx)
         {
-            S[0][i] = sin(2 * PI * (i * dx));
+            S[0][sx] = sin(2 * PI * (sx * dx));
         }
     }
 
@@ -106,9 +122,9 @@ public:
     }
 
     //condition to enforce the boundary conditions
-    inline double boundary(long i, double val)
+    inline double boundary(long pos_x, double val)
     {
-        if(i >= 0 && i < nx)
+        if(pos_x >= 0 && pos_x < nx)
             return val;
         else
             return 0;
@@ -119,11 +135,11 @@ public:
     {
         double result_local = - (2 * PI * sin(2 * PI * (time * dt)) * sin(2 * PI * (position * dx)));
         double w_position = w(position, time);
-        for(long i = position-eps; i <= position+eps; ++i)
+        for(long sx = position-eps; sx <= position+eps; ++sx)
         {
-            result_local -= influence_function(std::abs((long)position - (long)i)) 
+            result_local -= influence_function(std::abs((long)position - (long)sx)) 
                         * c_1d
-                        * (boundary(i, w(i, time)) - w_position) 
+                        * (boundary(sx, w(sx, time)) - w_position) 
                         * (dx);
         }
         return result_local;
@@ -133,18 +149,18 @@ public:
     double sum_local(long position)
     {
         double result_local = 0.0;
-        for(long i = position-eps; i <= position+eps; ++i)
+        for(long sx = position-eps; sx <= position+eps; ++sx)
         {
-            result_local += influence_function(std::abs((long)position - (long)i)) 
+            result_local += influence_function(std::abs((long)position - (long)sx)) 
                         * c_1d
-                        * (boundary(i, S[current][i]) - S[current][position]) 
+                        * (boundary(sx, S[current][sx]) - S[current][position]) 
                         * (dx);
         }
         return result_local;
     }
 
     // do all the work on 'nx' data points for 'nt' time steps
-    space do_work()
+    space_1d do_work()
     {
         // Actual time step loop
         for (long t = 0; t < nt; ++t)
@@ -152,11 +168,11 @@ public:
             current = t % 2;
             next = (t + 1) % 2;
 
-            for (long i = 0; i < nx; ++i)
+            for (long sx = 0; sx < nx; ++sx)
             {
-                S[next][i] = S[current][i] + (sum_local(i) * dt);
+                S[next][sx] = S[current][sx] + (sum_local(sx) * dt);
                 if(test)
-                    S[next][i] += sum_local_test(i, t) * dt;
+                    S[next][sx] += sum_local_test(sx, t) * dt;
             }
 
         }
@@ -165,8 +181,8 @@ public:
 
         //testing the code for correctness
         if(test)
-            for(long i = 0; i < nx; ++i)
-                error += (S[next][i] - w(i, nt)) * (S[next][i] - w(i, nt));
+            for(long sx = 0; sx < nx; ++sx)
+                error += (S[next][sx] - w(sx, nt)) * (S[next][sx] - w(sx, nt));
                 
         // Return the solution at time-step 'nt'.
         return S[next];
@@ -179,7 +195,7 @@ int batch_tester()
     bool test_failed = 0;
     
     std::cin >> num_tests;
-    for(long i = 0; i < num_tests; ++i)
+    for(long sx = 0; sx < num_tests; ++sx)
     {
         std::cin >> nx >> nt >> eps >> k >> dt >> dx;
         
@@ -231,7 +247,7 @@ int hpx_main(hpx::program_options::variables_map& vm)
     std::uint64_t t = hpx::util::high_resolution_clock::now();
 
     // Execute nt time steps on nx grid points.
-    solver::space solution = solve.do_work();
+    solver::space_1d solution = solve.do_work();
 
     std::uint64_t elapsed = hpx::util::high_resolution_clock::now() - t;
 
@@ -241,8 +257,8 @@ int hpx_main(hpx::program_options::variables_map& vm)
 
     // Print the final solution
     if (vm.count("results"))
-        for (long i = 0; i < nx; ++i)
-            std::cout << "S[" << i << "] = " << solution[i] << std::endl;
+        for (long sx = 0; sx < nx; ++sx)
+            std::cout << "S[" << sx << "] = " << solution[sx] << std::endl;
 
     std::uint64_t const os_thread_count = hpx::get_os_thread_count();
     print_time_results(os_thread_count, elapsed, nx, nt, header);

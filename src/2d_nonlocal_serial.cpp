@@ -16,6 +16,7 @@
 #include <math.h>
 #include <algorithm> 
 
+#include "point.h"
 #include "print_time_results.hpp"
 
 //mathematical constant PI
@@ -29,18 +30,25 @@ double dh = 1.;     // grid spacing
 class solver
 {
 public:
+    // 3d coordinate for representation of point
+    typedef util::Point3 point_3d;
+
+    // 3d plane using the 3d point representation
+    // Note that the plane is actually stored in a 1d fashion
+    typedef std::vector<point_3d> plane_3d;
+
     // Our partition type
-    typedef double partition;
+    typedef double temperature;
 
-    // 1d space data structure
-    typedef std::vector<partition> d1_space;
-
-    // Our data for one time step in 2d space
-    typedef std::vector<d1_space> space;
+    // 2d space data structure
+    typedef std::vector<temperature> space_2d;
 
     //alternate for space between time steps,
     //result of S[t%2] goes to S[(t+1)%2] at every timestep 't'
-    space S[2];
+    space_2d S[2];
+
+    // vector containining 3d coordinates of the points in the plane
+    plane_3d P;
 
     //nx = length of grid in x dimension
     //ny = length of grid in y dimension
@@ -62,13 +70,18 @@ public:
         this->error = 0.0;
         this->test = 0;
 
-        for(auto &sx : S)
+        P.resize(nx * ny);
+        for(long sx = 0; sx < nx; ++sx)
         {
-            sx.resize(nx);
-            for(auto &sy : sx)
+            for(long sy = 0; sy < ny; ++sy)
             {
-                sy.resize(ny);
+                P[get_loc(sx, sy)] = point_3d(sx, sy, 0);
             }
+        }
+
+        for(auto &s : S)
+        {
+            s.resize(nx * ny);
         }
     }
 
@@ -77,21 +90,34 @@ public:
     {
         std::cout << error << std::endl;
         if(cmp)
-            for(long i = 0; i < nx; ++i)
-                for(long j = 0; j < ny; ++j)
-                    std::cout << "Expected: " << w(i, j, nt)
-                    << " Actual: " << S[nt % 2][i][j] << std::endl;
+            for(long sx = 0; sx < nx; ++sx)
+                for(long sy = 0; sy < ny; ++sy)
+                    std::cout << "Expected: " << w(sx, sy, nt)
+                    << " Actual: " << S[nt % 2][get_loc(sx, sy)] << std::endl;
+    }
+
+    //print the solution for the user
+    void print_soln()
+    {
+        for (long sx = 0; sx < nx; ++sx)
+        {
+            for (long sy = 0; sy < ny; ++sy)
+            {
+                std::cout << "S[" << sx << "][" << sy << "] = " << S[nt%2][get_loc(sx, sy)] << " ";
+            }
+            std::cout << std::endl;
+        }
     }
 
     //input the initialization for 2d nonlocal equation
     void input_init()
     {
         test = 0;
-        for(auto &sx : S[0])
+        for(long sx = 0; sx < nx; ++sx)
         {
-            for(auto &sy : sx)
+            for(long sy = 0; sy < ny; ++sy)
             {
-                std::cin >> sy;
+                std::cin >> S[0][get_loc(sx, sy)];
             }
         }
     }
@@ -100,12 +126,12 @@ public:
     void test_init()
     {
         test = 1;
-        for(long i = 0; i < nx; ++i)
+        for(long sx = 0; sx < nx; ++sx)
         {
-            for(long j = 0; j < ny; ++j)
+            for(long sy = 0; sy < ny; ++sy)
             {
-                S[0][i][j] = sin(2 * PI * (i * dh))
-                    *sin(2 * PI * (j * dh));
+                S[0][get_loc(sx, sy)] = sin(2 * PI * (sx * dh))
+                    *sin(2 * PI * (sy * dh));
             }
         }
     }
@@ -114,6 +140,12 @@ public:
     static double influence_function(double distance)
     {
         return 1.0;
+    }
+
+    // operator for getting the location of 2d point in 1d representation
+    inline long get_loc(long x, long y)
+    {
+        return x + y * nx;
     }
 
     //testing operator to verify correctness
@@ -131,7 +163,7 @@ public:
             if(val != 2.0)
                 return val;
             else
-                return S[current][pos_x][pos_y];
+                return S[current][get_loc(pos_x, pos_y)];
         else
             return 0;
     }
@@ -159,14 +191,14 @@ public:
         double w_position = w(pos_x, pos_y, time);
         long len_line = 0;
 
-        for(long i = pos_x-eps; i <= pos_x+eps; ++i)
+        for(long sx = pos_x-eps; sx <= pos_x+eps; ++sx)
         {
-            len_line = len_1d_line(std::abs((long)pos_x - (long)i));
-            for(long j = pos_y-len_line; j <= pos_y+len_line; ++j)
+            len_line = len_1d_line(std::abs((long)pos_x - (long)sx));
+            for(long sy = pos_y-len_line; sy <= pos_y+len_line; ++sy)
             {
-                result_local -= influence_function(distance(pos_x, pos_y, i, j))
+                result_local -= influence_function(distance(pos_x, pos_y, sx, sy))
                                 * c_2d
-                                * (boundary(i, j, w(i, j, time)) - w_position)
+                                * (boundary(sx, sy, w(sx, sy, time)) - w_position)
                                 * (dh * dh);
             }
         }
@@ -181,14 +213,14 @@ public:
         double result_local = 0.0;
         long len_line = 0;
 
-        for(long i = pos_x-eps; i <= pos_x+eps; ++i)
+        for(long sx = pos_x-eps; sx <= pos_x+eps; ++sx)
         {
-            len_line = len_1d_line(std::abs((long)pos_x - (long)i));
-            for(long j = pos_y-len_line; j <= pos_y+len_line; ++j)
+            len_line = len_1d_line(std::abs((long)pos_x - (long)sx));
+            for(long sy = pos_y-len_line; sy <= pos_y+len_line; ++sy)
             {
-                result_local += influence_function(distance(pos_x, pos_y, i, j))
+                result_local += influence_function(distance(pos_x, pos_y, sx, sy))
                                 * c_2d
-                                * (boundary(i, j) - S[current][pos_x][pos_y])
+                                * (boundary(sx, sy) - S[current][get_loc(pos_x, pos_y)])
                                 * (dh * dh);
             }
         }
@@ -197,7 +229,7 @@ public:
     }
 
     // do all the work on 'nx * ny' data points for 'nt' time steps
-    space do_work()
+    space_2d do_work()
     {
         // Actual time step loop
         for (long t = 0; t < nt; ++t)
@@ -205,13 +237,13 @@ public:
             current = t % 2;
             next = (t + 1) % 2;
 
-            for (long i = 0; i < nx; ++i)
+            for (long sx = 0; sx < nx; ++sx)
             {
-                for (long j = 0; j < ny; ++j)
+                for (long sy = 0; sy < ny; ++sy)
                 {
-                    S[next][i][j] = S[current][i][j] + (sum_local(i, j) * dt);
+                    S[next][get_loc(sx, sy)] = S[current][get_loc(sx, sy)] + (sum_local(sx, sy) * dt);
                     if(test)
-                        S[next][i][j] += sum_local_test(i, j, t) * dt;
+                        S[next][get_loc(sx, sy)] += sum_local_test(sx, sy, t) * dt;
                 }
             }
 
@@ -221,9 +253,9 @@ public:
 
         //testing the code for correctness
         if(test)
-            for(long i = 0; i < nx; ++i)
-                for(long j = 0; j < ny; ++j)
-                    error += (S[next][i][j] - w(i, j, nt)) * (S[next][i][j] - w(i, j, nt));
+            for(long sx = 0; sx < nx; ++sx)
+                for(long sy = 0; sy < ny; ++sy)
+                    error += (S[next][get_loc(sx, sy)] - w(sx, sy, nt)) * (S[next][get_loc(sx, sy)] - w(sx, sy, nt));
 
         // Return the solution at time-step 'nt'.
         return S[nt % 2];
@@ -289,7 +321,7 @@ int hpx_main(hpx::program_options::variables_map& vm)
     std::uint64_t t = hpx::util::high_resolution_clock::now();
 
     // Execute nt time steps on nx grid points.
-    solver::space solution = solve.do_work();
+    solver::space_2d solution = solve.do_work();
 
     std::uint64_t elapsed = hpx::util::high_resolution_clock::now() - t;
 
@@ -300,14 +332,7 @@ int hpx_main(hpx::program_options::variables_map& vm)
 
     // Print the final solution
     if (vm.count("results"))
-        for (long i = 0; i < nx; ++i)
-        {
-            for (long j = 0; j < ny; ++j)
-            {
-                std::cout << "S[" << i << "][" << j << "] = " << solution[i][j] << " ";
-            }
-            std::cout << std::endl;
-        }
+        solve.print_soln();
 
     std::uint64_t const os_thread_count = hpx::get_os_thread_count();
     print_time_results(os_thread_count, elapsed, nx, ny, nt, header);
