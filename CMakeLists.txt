@@ -11,14 +11,23 @@ PROJECT(Nonlocalheatequation)
 
 cmake_minimum_required(VERSION 3.10)
 
-SET(BUILD_PROJECT_DESCRIPTION OFF CACHE STRING "Build project description")
+set(BUILD_PROJECT_DESCRIPTION OFF CACHE STRING "Build project description")
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
+set(VTK_DIR "/home/pranav/vtk/build")
 
 if(BUILD_PROJECT_DESCRIPTION)
     add_subdirectory(description)
 endif()
 
 find_package(HPX REQUIRED)
+find_package(VTK REQUIRED)
+include(${VTK_USE_FILE})
+
+add_library(LibsModule 
+    ./include/writer.cpp
+)
+target_link_libraries(LibsModule ${VTK_LIBRARIES})
+
 add_hpx_executable(1d_nonlocal_serial
     SOURCES ./src/1d_nonlocal_serial.cpp
     COMPONENT_DEPENDENCIES iostreams)

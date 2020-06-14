@@ -16,8 +16,9 @@
 #include <math.h>
 #include <algorithm> 
 
-#include "point.h"
-#include "print_time_results.hpp"
+#include "../include/point.h"
+#include "../include/print_time_results.hpp"
+#include "../include/writer.h"
 
 //mathematical constant PI
 #define PI 3.14159265

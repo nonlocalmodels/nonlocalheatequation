@@ -16,9 +16,8 @@
 #include <math.h>
 #include <algorithm> 
 
-#include "../include/point.h"
-#include "../include/print_time_results.hpp"
-#include "../include/writer.h"
+#include "point.h"
+#include "print_time_results.hpp"
 
 //mathematical constant PI
 #define PI 3.14159265
@@ -358,6 +357,9 @@ int main(int argc, char* argv[])
         "Local y dimension")
         ("nt", po::value<std::uint64_t>()->default_value(45),
          "Number of time steps")
+        ("np", value<std::uint64_t>()->default_value(10),
+         "Number of partitions in x dimension. Note that no. of
+         partitions in x and y dimension are the same")
         ("eps", po::value<std::uint64_t>()->default_value(5),
          "Epsilon for nonlocal equation")
         ("k", po::value<double>(&k)->default_value(1),
