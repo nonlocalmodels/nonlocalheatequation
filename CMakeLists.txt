@@ -30,10 +30,12 @@ target_link_libraries(LibsModule ${VTK_LIBRARIES})
 
 add_hpx_executable(1d_nonlocal_serial
     SOURCES ./src/1d_nonlocal_serial.cpp
+    DEPENDENCIES LibsModule
     COMPONENT_DEPENDENCIES iostreams)
 
 add_hpx_executable(2d_nonlocal_serial
     SOURCES ./src/2d_nonlocal_serial.cpp
+    DEPENDENCIES LibsModule
     COMPONENT_DEPENDENCIES iostreams)
 
 enable_testing()

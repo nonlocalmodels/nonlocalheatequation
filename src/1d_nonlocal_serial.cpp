@@ -15,6 +15,8 @@
 #include <vector>
 #include <math.h>
 #include <algorithm> 
+#include <ctime>
+#include <fstream>
 
 #include "../include/point.h"
 #include "../include/print_time_results.hpp"
@@ -53,19 +55,28 @@ public:
     // nx = number of data points
     // nt = number of timesteps
     // eps = Epsilon for influence zone of a point
-    long nx, nt, eps, c_1d;
+    // nlog = number of timesteps after which we want to log the states
+    long nx, nt, eps, c_1d, nlog;
     bool current, next, test;
-    double error;
+    double error_l2, error_linf;
+
+    // file to store the simulation results in csv format
+    const std::string simulate_fname = "../out_csv/simulate_2d.csv";
+
+    // file to store l2 and l infinity norms per timestep
+    const std::string score_fname = "../out_csv/score_2d.csv";
 
     //constructor to initialize class variables
-    solver(long nx, long nt, long eps)
+    solver(long nx, long nt, long eps, long nlog)
     {
         this->nx = nx;
         this->nt = nt;
         this->eps = eps;
+        this->nlog = nlog;
         this->c_1d = (k * 3)/ (pow(eps * dx, 3));
         this->current = 0;
-        this->error = 0.0;
+        this->error_l2 = 0.0;
+        this->error_linf = 0.0;
         this->test = 0;
         
         P.resize(nx);
@@ -80,10 +91,26 @@ public:
         }
     }
 
+    void compute_l2(long time)
+    {
+        error_l2 = 0;
+        
+        for(long sx = 0; sx < nx; ++sx)
+            error_l2 += (S[next][sx] - w(sx, time)) * (S[next][sx] - w(sx, time));
+    }
+
+    void compute_linf(long time)
+    {
+        error_linf = 0;
+        
+        for(long sx = 0; sx < nx; ++sx)
+            error_linf += std::abs(S[next][sx] - w(sx, time));
+    }
+
     //print error for testing
     void print_error(bool cmp)
     {
-        std::cout << error << std::endl;
+        std::cout << "l2: " << error_l2 << " linfinity: " << error_linf << std::endl;
         if(cmp)
             for(long sx = 0; sx < nx; ++sx)
                 std::cout << "Expected: " << w(sx, nt)
@@ -107,6 +134,51 @@ public:
         for(long sx = 0; sx < nx; ++sx)
         {
             S[0][sx] = sin(2 * PI * (sx * dx));
+        }
+    }
+
+    // Function to visualize in csv format and conduct various experiments
+    void log_vtk(long log_num)
+    {
+        const std::string fname = "../out_vtk/simulate_" + std::to_string(log_num);
+        rw::writer::VtkWriter vtk_logger(fname);
+
+        vtk_logger.appendNodes(&P);
+        vtk_logger.appendPointData("Temperature", &S[next]);
+        vtk_logger.addTimeStep(std::time(0));
+        vtk_logger.close();
+    }
+
+    // Function to visualize in csv format and conduct various experiments
+    void log_csv(long time)
+    {
+        std::ofstream outfile;
+        outfile.open(simulate_fname, std::ios_base::app);
+        
+        for(long sx = 0; sx < nx; ++sx)
+        {
+            outfile << time << ","
+            << sx << ","
+            << S[next][sx] << ","
+            << w(sx, time) << ","
+            << (S[next][sx] - w(sx, time)) * (S[next][sx] - w(sx, time)) << ","
+            << std::abs(S[next][sx] - w(sx, time)) << ",\n";
+        }
+
+        outfile.close();
+
+        // add to the score csv only when it's required
+        if(test)
+        {
+            compute_l2(time);
+            compute_linf(time);
+
+            std::ofstream outfile;
+
+            outfile.open(score_fname, std::ios_base::app);
+            outfile << time << "," << error_l2
+                << "," << error_linf << ",\n";
+            outfile.close();
         }
     }
 
@@ -176,21 +248,28 @@ public:
                     S[next][sx] += sum_local_test(sx, t) * dt;
             }
 
+            if(t%nlog == 0)
+            {
+                log_vtk(t/ nlog);
+                log_csv(t);
+            }
         }
 
         next = nt % 2;
 
         //testing the code for correctness
         if(test)
-            for(long sx = 0; sx < nx; ++sx)
-                error += (S[next][sx] - w(sx, nt)) * (S[next][sx] - w(sx, nt));
+        {
+            compute_l2(nt);
+            compute_linf(nt);
+        }
                 
         // Return the solution at time-step 'nt'.
         return S[next];
     }
 };
 
-int batch_tester()
+int batch_tester(long nlog)
 {
     std::uint64_t nx, nt, eps, num_tests;
     bool test_failed = 0;
@@ -201,12 +280,12 @@ int batch_tester()
         std::cin >> nx >> nt >> eps >> k >> dt >> dx;
         
         // Create the solver object
-        solver solve(nx, nt, eps);
+        solver solve(nx, nt, eps, nlog);
         solve.test_init();
         
         solve.do_work();
 
-        if (solve.error / (double)nx > 1e-6)
+        if (solve.error_l2 / (double)nx > 1e-6)
         {
             test_failed = 1;
             break;
@@ -227,16 +306,17 @@ int hpx_main(hpx::program_options::variables_map& vm)
     std::uint64_t nx = vm["nx"].as<std::uint64_t>();   // Number of grid points.
     std::uint64_t nt = vm["nt"].as<std::uint64_t>();   // Number of steps.
     std::uint64_t eps = vm["eps"].as<std::uint64_t>();   // Epsilon for influence zone of a point
+    std::uint64_t nlog = vm["nlog"].as<std::uint64_t>();   // Number of time steps to log the results
 
     if (vm.count("no-header"))
         header = false;
     
     //batch testing for ctesting
     if (vm.count("test_batch"))
-        return batch_tester();
+        return batch_tester(nlog);
 
     // Create the solver object
-    solver solve(nx, nt, eps);
+    solver solve(nx, nt, eps, nlog);
 
     //Take inputs from stdin for testing
     if(vm.count("test"))
@@ -282,6 +362,8 @@ int main(int argc, char* argv[])
          "Local x dimension")
         ("nt", po::value<std::uint64_t>()->default_value(45),
          "Number of time steps")
+        ("nlog", po::value<std::uint64_t>()->default_value(5),
+         "Number of time steps to log the results")
         ("eps", po::value<std::uint64_t>()->default_value(5),
          "Epsilon for nonlocal equation")
         ("k", po::value<double>(&k)->default_value(1),
