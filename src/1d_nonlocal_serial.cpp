@@ -58,13 +58,14 @@ public:
     // nlog = number of timesteps after which we want to log the states
     long nx, nt, eps, c_1d, nlog;
     bool current, next, test;
+    // l2 norm and l infinity norm
     double error_l2, error_linf;
 
     // file to store the simulation results in csv format
-    const std::string simulate_fname = "../out_csv/simulate_2d.csv";
+    const std::string simulate_fname = "../out_csv/simulate_1d.csv";
 
     // file to store l2 and l infinity norms per timestep
-    const std::string score_fname = "../out_csv/score_2d.csv";
+    const std::string score_fname = "../out_csv/score_1d.csv";
 
     //constructor to initialize class variables
     solver(long nx, long nt, long eps, long nlog)
@@ -104,7 +105,7 @@ public:
         error_linf = 0;
         
         for(long sx = 0; sx < nx; ++sx)
-            error_linf += std::abs(S[next][sx] - w(sx, time));
+            error_linf = std::max(std::abs(S[next][sx] - w(sx, time)), error_linf);
     }
 
     //print error for testing

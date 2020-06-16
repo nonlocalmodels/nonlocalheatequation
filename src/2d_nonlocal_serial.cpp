@@ -59,6 +59,7 @@ public:
     //nlog = Number of time steps to log the results
     long nx, ny, nt, eps, c_2d, nlog;
     bool current, next, test;
+    // l2 norm and l infinity norm
     double error_l2, error_linf;
 
     // file to store the simulation results in csv format
@@ -113,7 +114,7 @@ public:
         
         for(long sx = 0; sx < nx; ++sx)
             for(long sy = 0; sy < ny; ++sy)
-                error_linf += std::abs(S[next][get_loc(sx, sy)] - w(sx, sy, time));
+                error_linf = std::max(std::abs(S[next][get_loc(sx, sy)] - w(sx, sy, time)), error_linf);
     }
 
     //print error for testing
