@@ -1,10 +1,10 @@
 test:
-  -tests/*
+  - tests/*
 code:
-  -src/*
+  - src/*
 data:
-  -data/*
+  - data/*
 description:
-  -description/*
+  - description/*
 build:
-  -CMakeLists.txt
+  - CMakeLists.txt
