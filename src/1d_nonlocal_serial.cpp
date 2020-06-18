@@ -79,6 +79,7 @@ public:
         this->error_l2 = 0.0;
         this->error_linf = 0.0;
         this->test = 0;
+        this->next = 1;
         
         P.resize(nx);
         for(long sx = 0; sx < nx; ++sx)

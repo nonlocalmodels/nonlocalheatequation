@@ -81,6 +81,7 @@ public:
         this->error_l2 = 0.0;
         this->error_linf = 0.0;
         this->test = 0;
+        this->next = 1;
 
         P.resize(nx * ny);
         for(long sx = 0; sx < nx; ++sx)
@@ -410,7 +411,7 @@ int hpx_main(hpx::program_options::variables_map& vm)
     std::uint64_t t = hpx::util::high_resolution_clock::now();
 
     // Execute nt time steps on nx grid points.
-    solver::space_2d solution = solve.do_work();
+    solve.do_work();
 
     std::uint64_t elapsed = hpx::util::high_resolution_clock::now() - t;
 
