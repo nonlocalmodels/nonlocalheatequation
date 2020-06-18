@@ -1,0 +1,10 @@
+test:
+  -tests/*
+code:
+  -src/*
+data:
+  -data/*
+description:
+  -description/*
+build:
+  -CMakeLists.txt
