@@ -9,23 +9,97 @@
 #include <hpx/hpx_init.hpp>
 #include <hpx/hpx.hpp>
 
+#include <hpx/include/parallel_algorithm.hpp>
+#include <boost/range/irange.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <vector>
 #include <math.h>
-#include <algorithm> 
+#include <unordered_map>
+#include <algorithm>
+#include <fstream>
 
-#include "point.h"
-#include "print_time_results.hpp"
+#include "../include/point.h"
+#include "../include/print_time_results.hpp"
+#include "../include/writer.h"
 
 //mathematical constant PI
 #define PI 3.14159265
 
 bool header = 1;
-double k = 1 ;     // heat transfer coefficient
+double k = 1 ;      // heat transfer coefficient
 double dt = 1.;     // time step
 double dh = 1.;     // grid spacing
+long nx = 50;     // Number of grid points in x dimension
+long ny = 50;     // Number of grid points in y dimension
+long np = 5;      // Number of partitions we want to break the grid into
+long eps = 5;     // Epsilon for influence zone of a point
+double c_2d = 0.0;  // 'c' to be used in nonlocal equation for 2d case when J(influence function) = 1 
+
+// operator for getting the location of 2d point in 1d representation
+inline long get_loc(long x, long y, long nx = nx)
+{
+    return x + y * nx;
+}
+
+// operator for getting 2d coordinate of grid square in which the space has been divided
+inline long grid_loc(long x, long y)
+{
+    return get_loc(x / nx, y / ny, np);
+}
+
+// operator for getting 2d coordinate of a point within the grid square
+inline long mesh_loc(long x, long y)
+{
+    return get_loc(x % nx, y % ny);
+}
+
+// A small square part of the original space whose temperature values will be computed
+// on a single thread
+class partition_space
+{
+    public:
+
+    // coordinates of the grid point corresponding the np * np squares in the partition
+    long gx, gy;
+
+    explicit partition_space(std::size_t size)
+      : data_(new double[size]), size_(size)
+    {}
+
+    partition_space(std::size_t size, long gx, long gy)
+      : data_(new double[size]), size_(size), gx(gx), gy(gy)
+    {}
+
+    // add test initialization here for executing tests
+    partition_space(long nx, long ny, long gx, long gy)
+      : data_(new double[nx * ny]),
+        size_(nx * ny),
+        gx(gx), gy(gy)
+    {
+        for(long sx = gx*nx; sx < nx + gx*nx; ++sx)
+        {
+            for(long sy = gy*ny; sy < ny + gy*ny; ++sy)
+            {
+                data_[mesh_loc(sx, sy)] = sin(2 * PI * (sx * dh))
+                    *sin(2 * PI * (sy * dh));
+            }
+        }
+    }
+
+    // operators to return the data at some index from the given partition
+    double& operator[](std::size_t idx) { return data_[idx]; }
+    double operator[](std::size_t idx) const { return data_[idx]; }
+
+    std::size_t size() const { return size_; }
+
+private:
+    std::shared_ptr<double[]> data_;
+    std::size_t size_;
+
+};
 
 class solver
 {
@@ -37,11 +111,14 @@ public:
     // Note that the plane is actually stored in a 1d fashion
     typedef std::vector<point_3d> plane_3d;
 
-    // Our partition type
+    // Our data type used for temperature values
     typedef double temperature;
 
-    // 2d space data structure
-    typedef std::vector<temperature> space_2d;
+    // partitioning the 2d space into np * np small squares which constitute a partition of space
+    typedef hpx::shared_future<partition_space> partition;
+
+    // 2d space data structure which consists of future of square partitions
+    typedef std::vector<partition> space_2d;
 
     //alternate for space between time steps,
     //result of S[t%2] goes to S[(t+1)%2] at every timestep 't'
@@ -50,126 +127,218 @@ public:
     // vector containining 3d coordinates of the points in the plane
     plane_3d P;
 
-    //nx = length of grid in x dimension
-    //ny = length of grid in y dimension
-    //nt = number of timesteps
-    //eps = Epsilon for influence zone of a point
-    long nx, ny, nt, eps, c_2d;
+    // nt = number of timesteps
+    // nd = Depth till which dependency tree is allowed to grow
+    // nlog = Number of time steps to log the results
+    long nt, nd, nlog;
     bool current, next, test;
-    double error;
+    // l2 norm and l infinity norm
+    double error_l2, error_linf;
 
     //constructor to initialize class variables and allocate
-    solver(long nx, long ny, long nt, long eps)
+    solver(long nt, long nd, long nlog, bool test)
     {
-        this->nx = nx;
-        this->ny = ny;
         this->nt = nt;
-        this->eps = eps;
-        this->c_2d = (k * 8)/ pow(eps * dh, 4);
+        this->nd = nd;
+        this->nlog = nlog;
         this->current = 0;
-        this->error = 0.0;
-        this->test = 0;
+        this->error_l2 = 0.0;
+        this->error_linf = 0.0;
+        this->test = test;
+        this->next = 1;
 
-        P.resize(nx * ny);
-        for(long sx = 0; sx < nx; ++sx)
+        P.resize(nx * ny * np * np);
+        for(long sx = 0; sx < nx*np; ++sx)
         {
-            for(long sy = 0; sy < ny; ++sy)
+            for(long sy = 0; sy < ny*np; ++sy)
             {
-                P[get_loc(sx, sy)] = point_3d(sx, sy, 0);
+                P[sx + sy * (nx * np)] = point_3d(sx, sy, 0);
             }
         }
 
-        for(auto &s : S)
-        {
-            s.resize(nx * ny);
-        }
+        for (space_2d& s: S)
+            s.resize(np * np);
+
+        auto range = boost::irange((long)0, np * np);
+        hpx::parallel::for_each(hpx::parallel::execution::par, std::begin(range), std::end(range),
+            [this](std::size_t i)
+            {
+                this->S[0][i] = hpx::make_ready_future(partition_space(nx, ny, i % np, i / np));
+            }
+        );
+    }
+
+    // function to compute l2 norm of the solution
+    void compute_l2(long time)
+    {
+        error_l2 = 0;
+
+        for(long sx = 0; sx < nx * np; ++sx)
+            for(long sy = 0; sy < ny * np; ++sy)
+                error_l2 += std::pow(S[next][grid_loc(sx, sy)].get()[mesh_loc(sx, sy)] - w(sx, sy, time), 2);
+    }
+
+    // function to compute l infinity norm of the solution
+    void compute_linf(long time)
+    {
+        error_linf = 0;
+        
+        for(long sx = 0; sx < nx * np; ++sx)
+            for(long sy = 0; sy < ny * np; ++sy)
+                error_linf = std::max(std::abs(S[next][grid_loc(sx, sy)].get()[mesh_loc(sx, sy)] - w(sx, sy, time)), error_linf);
     }
 
     //print error for testing
     void print_error(bool cmp)
     {
-        std::cout << error << std::endl;
+        std::cout << "l2: " << error_l2 << " linfinity: " << error_linf << std::endl;
         if(cmp)
-            for(long sx = 0; sx < nx; ++sx)
-                for(long sy = 0; sy < ny; ++sy)
+            for(long sx = 0; sx < nx * np; ++sx)
+                for(long sy = 0; sy < ny * np; ++sy)
                     std::cout << "Expected: " << w(sx, sy, nt)
-                    << " Actual: " << S[nt % 2][get_loc(sx, sy)] << std::endl;
+                    << " Actual: " << S[next][grid_loc(sx, sy)].get()[mesh_loc(sx, sy)] 
+                    << std::endl;
     }
 
     //print the solution for the user
     void print_soln()
     {
-        for (long sx = 0; sx < nx; ++sx)
+        for (long sx = 0; sx < nx*ny; ++sx)
         {
-            for (long sy = 0; sy < ny; ++sy)
+            for (long sy = 0; sy < ny*ny; ++sy)
             {
-                std::cout << "S[" << sx << "][" << sy << "] = " << S[nt%2][get_loc(sx, sy)] << " ";
+                std::cout << "S[" << sx << "][" << sy << "] = " 
+                << S[next][grid_loc(sx, sy)].get()[mesh_loc(sx, sy)] << " ";
             }
             std::cout << std::endl;
         }
     }
 
-    //input the initialization for 2d nonlocal equation
-    void input_init()
+    // function to perform the logging in both csv and vtk format
+    static void log_csv_vtk(std::vector<partition_space> temp_data, plane_3d coord, long time, bool test)
     {
-        test = 0;
-        for(long sx = 0; sx < nx; ++sx)
+        // file to store the simulation results in csv format
+        const std::string simulate_fname = "../out_csv/simulate_2d.csv";
+
+        // file to store l2 and l infinity norms per timestep
+        const std::string score_fname = "../out_csv/score_2d.csv";
+        
+        std::ofstream outfile;
+        outfile.open(simulate_fname, std::ios_base::app);
+        
+        for(long sx = 0; sx < nx*np; ++sx)
         {
-            for(long sy = 0; sy < ny; ++sy)
+            for(long sy = 0; sy < ny*np; ++sy)
             {
-                std::cin >> S[0][get_loc(sx, sy)];
+                outfile << time << ","
+                << sx << ","
+                << sy << ","
+                << temp_data[grid_loc(sx, sy)][mesh_loc(sx, sy)] << ","
+                << w(sx, sy, time) << ","
+                << std::pow((temp_data[grid_loc(sx, sy)][mesh_loc(sx, sy)] - w(sx, sy, time)), 2) << ","
+                << std::abs(temp_data[grid_loc(sx, sy)][mesh_loc(sx, sy)] - w(sx, sy, time)) << ",\n";
             }
         }
-    }
 
-    //init for testing the 2d nonlocal equation
-    void test_init()
-    {
-        test = 1;
-        for(long sx = 0; sx < nx; ++sx)
+        outfile.close();
+
+        // VTK writer begins here
+
+        // vtu file name for writing the vtk data
+        const std::string fname = "../out_vtk/simulate_" + std::to_string(time);
+        rw::writer::VtkWriter vtk_logger(fname);
+        std::vector<double> vector_data(nx*ny*np*np);
+
+        vtk_logger.appendNodes(&coord);
+        
+        for(long sx = 0; sx < nx*np; ++sx)
+            for(long sy = 0; sy < ny*np; ++sy)
+                vector_data[sy*nx*np + sx] = temp_data[grid_loc(sx, sy)][mesh_loc(sx, sy)];
+                
+        vtk_logger.appendPointData("Temperature", &vector_data);
+        vtk_logger.addTimeStep(std::time(0));
+        vtk_logger.close();
+
+        // VTK writer ends here
+
+        // add to the score csv only when it's required
+        if(test)
         {
-            for(long sy = 0; sy < ny; ++sy)
+            double error_l2 = 0, error_linf = 0;
+
+            for(long sx = 0; sx < nx * np; ++sx)
             {
-                S[0][get_loc(sx, sy)] = sin(2 * PI * (sx * dh))
-                    *sin(2 * PI * (sy * dh));
+                for(long sy = 0; sy < ny * np; ++sy)
+                {
+                    error_linf = std::max(std::abs(temp_data[grid_loc(sx, sy)][mesh_loc(sx, sy)] - w(sx, sy, time)), error_linf);
+                    error_l2 += std::pow(temp_data[grid_loc(sx, sy)][mesh_loc(sx, sy)] - w(sx, sy, time), 2);
+                }
             }
+
+            std::ofstream outfile;
+
+            outfile.open(score_fname, std::ios_base::app);
+            outfile << time << "," << error_l2
+                << "," << error_linf << ",\n";
+            outfile.close();
         }
     }
 
     //our influence function to weigh various points differently
-    static double influence_function(double distance)
+    static inline double influence_function(double distance)
     {
         return 1.0;
     }
 
-    // operator for getting the location of 2d point in 1d representation
-    inline long get_loc(long x, long y)
+    // inserting the rectangles which are just above, below and on the sides of the given partition
+    // into the unordered_map used to index the squares already inserted into the vector
+    static void add_neighbour_rectangle(long lx, long ly, long rx, long ry, space_2d &all_squares
+                       , space_2d &neighbour_squares, std::unordered_map<int, int> &index)
     {
-        return x + y * nx;
+        for(long sx = lx; sx < rx+nx; sx+=nx)
+        {
+            for(long sy = ly; sy < ry+ny; sy+=ny)
+            {
+                if(sx < 0 || sx >= nx*np || sy < 0 || sy >= ny*np) continue;
+
+                if(index.find(grid_loc(sx, sy)) == index.end())
+                {
+                    index[grid_loc(sx, sy)] = neighbour_squares.size();
+                    neighbour_squares.push_back(all_squares[grid_loc(sx, sy)]);
+                }
+            }
+        }
     }
 
     //testing operator to verify correctness
-    inline double w(long pos_x, long pos_y, long time)
+    static inline double w(long pos_x, long pos_y, long time)
     {
         return cos(2 * PI * (time * dt)) 
                 * sin(2 * PI * (pos_x * dh))
                 * sin(2 * PI * (pos_y * dh));
     }
 
-    //condition to enforce the boundary conditions
-    inline double boundary(long pos_x, long pos_y, double val = 2.0)
+    //condition to enforce the boundary conditions for the divided partitions
+    static inline double boundary(long pos_x, long pos_y, std::vector<partition_space> neighbour_squares, 
+                     std::unordered_map<int, int> index)
     {
-        if(pos_x >= 0 && pos_x < nx && pos_y >= 0 && pos_y < ny)
-            if(val != 2.0)
-                return val;
-            else
-                return S[current][get_loc(pos_x, pos_y)];
+        if(pos_x >= 0 && pos_x < nx * np && pos_y >= 0 && pos_y < ny * np)
+            return neighbour_squares[index[grid_loc(pos_x, pos_y)]][mesh_loc(pos_x, pos_y)];
+        else
+            return 0;
+    }
+
+    //condition to enforce the boundary conditions for the tests
+    static inline double boundary(long pos_x, long pos_y, double val)
+    {
+        if(pos_x >= 0 && pos_x < nx * np && pos_y >= 0 && pos_y < ny * np)
+            return val;
         else
             return 0;
     }
 
     // Function to find distance in 2d plane given 2 points coordinates
-    double distance(long cen_x, long cen_y, long pos_x, long pos_y)
+    static inline double distance(long cen_x, long cen_y, long pos_x, long pos_y)
     {
         return sqrt(((cen_x - pos_x) * (cen_x - pos_x))
                 +   ((cen_y - pos_y) * (cen_y - pos_y)));
@@ -177,13 +346,13 @@ public:
 
     // Function to compute length of 3rd side of a right angled triangle
     // given hypotenuse and lenght of one side
-    double len_1d_line(long len_x)
+    static inline double len_1d_line(long len_x)
     {
         return sqrt((eps * eps) - (len_x * len_x));
     }
 
     //Following function adds the external source to the 2d nonlocal heat equation
-    double sum_local_test(long pos_x, long pos_y, long time)
+    static double sum_local_test(long pos_x, long pos_y, long time)
     {
         double result_local = - (2 * PI * sin(2 * PI * (time * dt)) 
                                 * sin(2 * PI * (pos_x * dh))
@@ -208,10 +377,12 @@ public:
 
     // Our operator to find sum of 'eps' radius circle in vicinity of point P(x,y)
     // Represent circle as a series of horizaontal lines of thickness 'dh'
-    double sum_local(long pos_x, long pos_y)
+    static double sum_local(long pos_x, long pos_y, std::vector<partition_space> neighbour_squares, 
+                     std::unordered_map<int, int> index)
     {
         double result_local = 0.0;
         long len_line = 0;
+        double pos_val = boundary(pos_x, pos_y, neighbour_squares, index);
 
         for(long sx = pos_x-eps; sx <= pos_x+eps; ++sx)
         {
@@ -220,7 +391,7 @@ public:
             {
                 result_local += influence_function(distance(pos_x, pos_y, sx, sy))
                                 * c_2d
-                                * (boundary(sx, sy) - S[current][get_loc(pos_x, pos_y)])
+                                * (boundary(sx, sy, neighbour_squares, index) - pos_val)
                                 * (dh * dh);
             }
         }
@@ -228,59 +399,126 @@ public:
         return result_local;
     }
 
-    // do all the work on 'nx * ny' data points for 'nt' time steps
-    space_2d do_work()
+    // partition of nx * ny cells which will be processed by a single thread
+    static partition_space sum_local_partition(std::vector<partition_space> neighbour_squares, 
+                                        std::unordered_map<int, int> index, long time, bool test)
     {
+        partition_space& middle = neighbour_squares[0];
+        
+        long size = middle.size();
+        long gx = middle.gx, gy = middle.gy;
+        partition_space next(size, gx, gy);
+
+        for(long sx = 0; sx < nx; ++sx)
+        {
+            for(long sy = 0; sy < ny; ++sy)
+            {
+                next[get_loc(sx, sy)] = middle[get_loc(sx, sy)] + (sum_local(sx + gx*nx, sy + gy*ny, neighbour_squares, index) * dt);
+                if(test)
+                    next[get_loc(sx, sy)] += sum_local_test(sx + gx*nx, sy + gy*ny, time) * dt;
+            }
+        }
+
+        return next;
+    }
+
+    // do all the work on 'nx * ny' data points for each of 'np * np' partitions for 'nt' time steps
+    void do_work()
+    {
+        // limit depth of dependency tree
+        hpx::lcos::local::sliding_semaphore sem(nd);
+
+        auto Op = hpx::util::unwrapping(&solver::sum_local_partition);
+
         // Actual time step loop
         for (long t = 0; t < nt; ++t)
         {
             current = t % 2;
             next = (t + 1) % 2;
 
-            for (long sx = 0; sx < nx; ++sx)
+            for(long gx = 0; gx < np; ++gx)
             {
-                for (long sy = 0; sy < ny; ++sy)
+                for(long gy = 0; gy < np; ++gy)
                 {
-                    S[next][get_loc(sx, sy)] = S[current][get_loc(sx, sy)] + (sum_local(sx, sy) * dt);
-                    if(test)
-                        S[next][get_loc(sx, sy)] += sum_local_test(sx, sy, t) * dt;
+                    space_2d vector_deps;
+                    std::unordered_map<int, int> index;
+                    
+                    index[get_loc(gx, gy, np)] = 0;
+                    vector_deps.push_back(S[current][get_loc(gx, gy, np)]);
+                    
+                    // add dependent neighbouring squares
+                    // for now they are added assuming it to be a big rectangle
+                    // in the future these additions can be in form of 4 sectors for 4 corners 
+                    // and 4 rectangles for top, bottom, left and right of the rectangle
+                    add_neighbour_rectangle(gx*nx-eps, gy*ny-eps, gx*nx+nx+eps, gy*ny+ny+eps, S[current], vector_deps, index);
+
+                    // represent dependencies using hpx dataflow
+                    S[next][get_loc(gx, gy, np)] = hpx::dataflow(hpx::launch::async, Op, vector_deps, index, t, test);
                 }
             }
 
+            // every nd time steps, attach additional continuation which will
+            // trigger the semaphore once computation has reached this point
+            if ((t % nd) == 0)
+            {
+                S[next][0].then(
+                    [&sem, t](partition &&)
+                    {
+                        // inform semaphore about new lower limit
+                        sem.signal(t);
+                    });
+            }
+
+            // suspend if the tree has become too deep, the continuation above
+            // will resume this thread once the computation has caught up
+            sem.wait(t);
+
+            if(t % nlog == 0)
+                hpx::dataflow(hpx::launch::async, 
+                              hpx::util::unwrapping(&solver::log_csv_vtk),
+                              S[next],
+                              P,
+                              t,
+                              test);
         }
 
         next = nt % 2;
 
+        hpx::wait_all(S[next]);
+
         //testing the code for correctness
         if(test)
-            for(long sx = 0; sx < nx; ++sx)
-                for(long sy = 0; sy < ny; ++sy)
-                    error += (S[next][get_loc(sx, sy)] - w(sx, sy, nt)) * (S[next][get_loc(sx, sy)] - w(sx, sy, nt));
-
-        // Return the solution at time-step 'nt'.
-        return S[nt % 2];
+        {
+            compute_l2(nt);
+            compute_linf(nt);
+        }
     }
 };
 
-int batch_tester()
+// function to execute the ctests which are there in file '2d_async.txt' for this file
+int batch_tester(long nd, long nlog)
 {
-    std::uint64_t nx, ny, nt, eps, num_tests;
+    std::uint64_t nt, num_tests;
     bool test_failed = 0;
     
     std::cin >> num_tests;
     for(long i = 0; i < num_tests; ++i)
     {
-        std::cin >> nx >> ny >> nt >> eps >> k >> dt >> dh;
+        std::cin >> nx >> ny >> np >> nt >> eps >> k >> dt >> dh;
+
+        // setting the global variable c_2d which is a constant for this test case
+        // as per the inputs
+        c_2d = (k * 8)/ pow(eps * dh, 4);
         
         // Create the solver object
-        solver solve(nx, ny, nt, eps);
-        solve.test_init();
+        solver solve(nt, nd, nlog, 1);
         
         solve.do_work();
         
-        if (solve.error / (double)(nx * ny) > 1e-6)
+        if (solve.error_l2 / (double)(nx * ny * np * np) > 1e-6)
         {
             test_failed = 1;
+            std::cout << i << " " << solve.error_l2 / (double)(nx * ny * np * np) << std::endl;
             break;
         }
     }
@@ -296,38 +534,35 @@ int batch_tester()
 
 int hpx_main(hpx::program_options::variables_map& vm)
 {
-    std::uint64_t nx = vm["nx"].as<std::uint64_t>();   // Number of grid points in x dimension
-    std::uint64_t ny = vm["ny"].as<std::uint64_t>();   // Number of grid points in y dimension
     std::uint64_t nt = vm["nt"].as<std::uint64_t>();   // Number of steps.
-    std::uint64_t eps = vm["eps"].as<std::uint64_t>();   // Epsilon for influence zone of a point
+    std::uint64_t nd = vm["nd"].as<std::uint64_t>();   // Depth for which dependency tree is allowed to grow
+    std::uint64_t nlog = vm["nlog"].as<std::uint64_t>();   // Number of time steps to log the results
+    bool test = vm["test"].as<bool>();
+        
+    // setting the global variable c_2d which is a constant
+    c_2d = (k * 8)/ pow(eps * dh, 4);
 
     if (vm.count("no-header"))
         header = false;
 
     //batch testing for ctesting
     if (vm.count("test_batch"))
-        return batch_tester();
+        return batch_tester(nd, nlog);
 
     // Create the solver object
-    solver solve(nx, ny, nt, eps);
-
-    //Take inputs from stdin for testing
-    if(vm.count("test"))
-        solve.test_init();
-    else
-        solve.input_init();
+    solver solve(nt, nd, nlog, test);
 
     // Measure execution time.
     std::uint64_t t = hpx::util::high_resolution_clock::now();
 
     // Execute nt time steps on nx grid points.
-    solver::space_2d solution = solve.do_work();
+    solve.do_work();
 
     std::uint64_t elapsed = hpx::util::high_resolution_clock::now() - t;
 
     //print the calculated error
     //print comparison only when the 'cmp' flag is set
-    if(vm.count("test"))
+    if(test)
         solve.print_error(vm["cmp"].as<bool>());
 
     // Print the final solution
@@ -346,21 +581,25 @@ int main(int argc, char* argv[])
 
     po::options_description desc_commandline;
     desc_commandline.add_options()
-        ("test", "use arguments from numerical solution for testing (default: false)")
+        ("test", po::value<bool>()->default_value(true),
+         "use arguments from numerical solution for testing (default: false)")
         ("test_batch", "test the solution against numerical solution against batch inputs (default: false)")
         ("results", "print generated results (default: false)")
-        ("cmp", po::value<bool>()->default_value(true),
+        ("cmp", po::value<bool>()->default_value(false),
          "Print expected versus actual outputs")
-        ("nx", po::value<std::uint64_t>()->default_value(50),
+        ("nx", po::value<long>(&nx)->default_value(25),
          "Local x dimension")
-        ("ny", po::value<std::uint64_t>()->default_value(50),
+        ("ny", po::value<long>(&ny)->default_value(25),
         "Local y dimension")
         ("nt", po::value<std::uint64_t>()->default_value(45),
          "Number of time steps")
-        ("np", value<std::uint64_t>()->default_value(10),
-         "Number of partitions in x dimension. Note that no. of
-         partitions in x and y dimension are the same")
-        ("eps", po::value<std::uint64_t>()->default_value(5),
+        ("nd", po::value<std::uint64_t>()->default_value(5),
+         "Number of time steps to allow the dependency tree to grow to")
+        ("np", po::value<long>(&np)->default_value(2),
+         "Number of partitions in x and y dimension")
+        ("nlog", po::value<std::uint64_t>()->default_value(5),
+         "Number of time steps to log the results")
+        ("eps", po::value<long>(&eps)->default_value(5),
          "Epsilon for nonlocal equation")
         ("k", po::value<double>(&k)->default_value(1),
          "Heat transfer coefficient (default: 0.5)")

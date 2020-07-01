@@ -57,10 +57,10 @@ public:
     //nt = number of timesteps
     //eps = Epsilon for influence zone of a point
     //nlog = Number of time steps to log the results
-    long nx, ny, nt, eps, c_2d, nlog;
+    long nx, ny, nt, eps, nlog;
     bool current, next, test;
     // l2 norm and l infinity norm
-    double error_l2, error_linf;
+    double error_l2, error_linf, c_2d;
 
     // file to store the simulation results in csv format
     const std::string simulate_fname = "../out_csv/simulate_2d.csv";

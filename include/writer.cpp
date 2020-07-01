@@ -19,10 +19,10 @@
 
 rw::writer::VtkWriter::VtkWriter(const std::string &filename,
                                  const std::string &compress_type)
-    : d_compressType(compress_type) {
+    : d_compressType(compress_type), d_writer_p(vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New()) {
   std::string f = filename + ".vtu";
 
-  d_writer_p = vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
+  //   d_writer_p = vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
   d_writer_p->SetFileName(const_cast<char *>(f.c_str()));
 }
 

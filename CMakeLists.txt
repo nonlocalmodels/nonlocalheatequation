@@ -38,6 +38,11 @@ add_hpx_executable(2d_nonlocal_serial
     DEPENDENCIES LibsModule
     COMPONENT_DEPENDENCIES iostreams)
 
+add_hpx_executable(2d_nonlocal_async
+    SOURCES ./src/2d_nonlocal_async.cpp
+    DEPENDENCIES LibsModule
+    COMPONENT_DEPENDENCIES iostreams)
+
 enable_testing()
 
 add_test(NAME Test_1d COMMAND sh -c "./1d_nonlocal_serial --test_batch < ../tests/1d.txt")
@@ -53,5 +58,13 @@ set_tests_properties(Test_2d
     PROPERTIES
     PASS_REGULAR_EXPRESSION "Tests Passed")
 set_tests_properties(Test_2d
+    PROPERTIES
+    FAIL_REGULAR_EXPRESSION "Tests Failed")
+
+add_test(NAME Test_2d_async COMMAND sh -c "./2d_nonlocal_async --test_batch < ../tests/2d_async.txt")
+set_tests_properties(Test_2d_async
+    PROPERTIES
+    PASS_REGULAR_EXPRESSION "Tests Passed")
+set_tests_properties(Test_2d_async
     PROPERTIES
     FAIL_REGULAR_EXPRESSION "Tests Failed")
