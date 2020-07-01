@@ -65,10 +65,6 @@ class partition_space
     // coordinates of the grid point corresponding the np * np squares in the partition
     long gx, gy;
 
-    explicit partition_space(std::size_t size)
-      : data_(new double[size]), size_(size)
-    {}
-
     partition_space(std::size_t size, long gx, long gy)
       : data_(new double[size]), size_(size), gx(gx), gy(gy)
     {}
@@ -319,7 +315,7 @@ public:
     }
 
     //condition to enforce the boundary conditions for the divided partitions
-    static inline double boundary(long pos_x, long pos_y, std::vector<partition_space> neighbour_squares, 
+    static inline double boundary(long pos_x, long pos_y, const std::vector<partition_space> &neighbour_squares, 
                      std::unordered_map<int, int> index)
     {
         if(pos_x >= 0 && pos_x < nx * np && pos_y >= 0 && pos_y < ny * np)
@@ -377,8 +373,8 @@ public:
 
     // Our operator to find sum of 'eps' radius circle in vicinity of point P(x,y)
     // Represent circle as a series of horizaontal lines of thickness 'dh'
-    static double sum_local(long pos_x, long pos_y, std::vector<partition_space> neighbour_squares, 
-                     std::unordered_map<int, int> index)
+    static double sum_local(long pos_x, long pos_y, const std::vector<partition_space> &neighbour_squares, 
+                     const std::unordered_map<int, int> &index)
     {
         double result_local = 0.0;
         long len_line = 0;
@@ -400,10 +396,10 @@ public:
     }
 
     // partition of nx * ny cells which will be processed by a single thread
-    static partition_space sum_local_partition(std::vector<partition_space> neighbour_squares, 
-                                        std::unordered_map<int, int> index, long time, bool test)
+    static partition_space sum_local_partition(const std::vector<partition_space> &neighbour_squares, 
+                                       const std::unordered_map<int, int> &index, long time, bool test)
     {
-        partition_space& middle = neighbour_squares[0];
+        const partition_space& middle = neighbour_squares[0];
         
         long size = middle.size();
         long gx = middle.gx, gy = middle.gy;
