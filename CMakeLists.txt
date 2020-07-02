@@ -38,8 +38,20 @@ add_hpx_executable(2d_nonlocal_serial
     DEPENDENCIES LibsModule
     COMPONENT_DEPENDENCIES iostreams)
 
+add_hpx_executable(2d_nonlocal_async
+    SOURCES ./src/2d_nonlocal_async.cpp
+    DEPENDENCIES LibsModule
+    COMPONENT_DEPENDENCIES iostreams)
+
 enable_testing()
 
+# test for checking the correctness of 1d nonlocal equation's serial implementation
+# test what         : correctness for large epsilon, small epsilon, larger number timesteps, various time and space discretizations
+# test how          : parameters will be inputted from the file '1d.txt' file in 'tests' folder as described below
+# first line        : number of test cases
+# from second line  : actual parameters inputs to be tested
+# order of inputs   : nx, nt, eps, k, dt, dx
+# Note              : Please refer to 'program_options' in 'main' function for '1d_nonlocal_serial.cpp' file in 'src' folder
 add_test(NAME Test_1d COMMAND sh -c "./1d_nonlocal_serial --test_batch < ../tests/1d.txt")
 set_tests_properties(Test_1d
     PROPERTIES
@@ -48,10 +60,33 @@ set_tests_properties(Test_1d
     PROPERTIES
     FAIL_REGULAR_EXPRESSION "Tests Failed")
 
+# test for checking the correctness of 2d nonlocal equation's serial implementation
+# test what         : correctness for large epsilon, small epsilon, larger number timesteps, various time and space discretizations
+# test how          : parameters will be inputted from the file '2d.txt' file in 'tests' folder as described below
+# first line        : number of test cases
+# from second line  : actual parameters inputs to be tested
+# order of inputs   : nx, ny, nt, eps, k, dt, dh
+# Note              : Please refer to 'program_options' in 'main' function for '2d_nonlocal_serial.cpp' file in 'src' folder
 add_test(NAME Test_2d COMMAND sh -c "./2d_nonlocal_serial --test_batch < ../tests/2d.txt")
 set_tests_properties(Test_2d
     PROPERTIES
     PASS_REGULAR_EXPRESSION "Tests Passed")
 set_tests_properties(Test_2d
+    PROPERTIES
+    FAIL_REGULAR_EXPRESSION "Tests Failed")
+
+# test for checking the correctness of 2d nonlocal equation's asynchronous implementation
+# test what         : correctness for large epsilon, small epsilon, large number paritions, small number of paritions
+#                     larger number timesteps, various time and space discretizations
+# test how          : parameters will be inputted from the file '2d_async.txt' file in 'tests' folder as described below
+# first line        : number of test cases
+# from second line  : actual parameters inputs to be tested
+# order of inputs   : nx, ny, np, nt, eps, k, dt, dh
+# Note              : Please refer to 'program_options' in 'main' function for '2d_nonlocal_async.cpp' file in 'src' folder
+add_test(NAME Test_2d_async COMMAND sh -c "./2d_nonlocal_async --test_batch < ../tests/2d_async.txt")
+set_tests_properties(Test_2d_async
+    PROPERTIES
+    PASS_REGULAR_EXPRESSION "Tests Passed")
+set_tests_properties(Test_2d_async
     PROPERTIES
     FAIL_REGULAR_EXPRESSION "Tests Failed")

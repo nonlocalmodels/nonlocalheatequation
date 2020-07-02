@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <iostream>
 #include <vector>
 #include <math.h>
@@ -21,9 +22,6 @@
 #include "../include/point.h"
 #include "../include/print_time_results.hpp"
 #include "../include/writer.h"
-
-//mathematical constant PI
-#define PI 3.14159265
 
 bool header = 0;
 double k = 1 ;     // heat transfer coefficient
@@ -135,7 +133,7 @@ public:
         this->test = 1;
         for(long sx = 0; sx < nx; ++sx)
         {
-            S[0][sx] = sin(2 * PI * (sx * dx));
+            S[0][sx] = sin(2 * M_PI * (sx * dx));
         }
     }
 
@@ -193,7 +191,7 @@ public:
     //testing operator to verify correctness
     inline double w(long position, long time)
     {
-        return cos(2 * PI * (time * dt)) * sin(2 * PI * (position * dx));
+        return cos(2 * M_PI * (time * dt)) * sin(2 * M_PI * (position * dx));
     }
 
     //condition to enforce the boundary conditions
@@ -208,7 +206,7 @@ public:
     //our test by introducing an external source
     double sum_local_test(long position, long time)
     {
-        double result_local = - (2 * PI * sin(2 * PI * (time * dt)) * sin(2 * PI * (position * dx)));
+        double result_local = - (2 * M_PI * sin(2 * M_PI * (time * dt)) * sin(2 * M_PI * (position * dx)));
         double w_position = w(position, time);
         for(long sx = position-eps; sx <= position+eps; ++sx)
         {
