@@ -6,6 +6,10 @@
 //  Distributed under the Boost Software License, Version 1.0. (See accompanying
 //  file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
+// Note on terminology  :-
+// grid square  : small squares/ rectangles into which we have divided the larger mesh 
+// mesh points  : points within a single grid square which is smallest unit of space in our equation
+
 #include <hpx/hpx_init.hpp>
 #include <hpx/hpx.hpp>
 
@@ -14,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <iostream>
 #include <vector>
 #include <math.h>
@@ -25,17 +30,14 @@
 #include "../include/print_time_results.hpp"
 #include "../include/writer.h"
 
-//mathematical constant PI
-#define PI 3.14159265
-
 bool header = 1;
 double k = 1 ;      // heat transfer coefficient
 double dt = 1.;     // time step
 double dh = 1.;     // grid spacing
-long nx = 50;     // Number of grid points in x dimension
-long ny = 50;     // Number of grid points in y dimension
-long np = 5;      // Number of partitions we want to break the grid into
-long eps = 5;     // Epsilon for influence zone of a point
+long nx = 50;       // Number of grid points in x dimension
+long ny = 50;       // Number of grid points in y dimension
+long np = 5;        // Number of partitions we want to break the grid into
+long eps = 5;       // Epsilon for influence zone of a point
 double c_2d = 0.0;  // 'c' to be used in nonlocal equation for 2d case when J(influence function) = 1 
 
 // operator for getting the location of 2d point in 1d representation
@@ -65,6 +67,10 @@ class partition_space
     // coordinates of the grid point corresponding the np * np squares in the partition
     long gx, gy;
 
+    explicit partition_space()
+      : data_(new double[0]), size_(0), gx(0), gy(0)
+    {}
+
     partition_space(std::size_t size, long gx, long gy)
       : data_(new double[size]), size_(size), gx(gx), gy(gy)
     {}
@@ -79,8 +85,8 @@ class partition_space
         {
             for(long sy = gy*ny; sy < ny + gy*ny; ++sy)
             {
-                data_[mesh_loc(sx, sy)] = sin(2 * PI * (sx * dh))
-                    *sin(2 * PI * (sy * dh));
+                data_[mesh_loc(sx, sy)] = sin(2 * M_PI * (sx * dh))
+                    *sin(2 * M_PI * (sy * dh));
             }
         }
     }
@@ -97,6 +103,11 @@ private:
 
 };
 
+// partitioned data available for threads for reading only for efficient accesses
+// and remove the need for unordered_map in the indexing part
+typedef std::vector<partition_space> space_2d;
+space_2d temperature_grid[2];
+
 class solver
 {
 public:
@@ -111,14 +122,14 @@ public:
     typedef double temperature;
 
     // partitioning the 2d space into np * np small squares which constitute a partition of space
-    typedef hpx::shared_future<partition_space> partition;
+    typedef hpx::shared_future<partition_space> partition_fut;
 
     // 2d space data structure which consists of future of square partitions
-    typedef std::vector<partition> space_2d;
+    typedef std::vector<partition_fut> space_2d_fut;
 
     //alternate for space between time steps,
     //result of S[t%2] goes to S[(t+1)%2] at every timestep 't'
-    space_2d S[2];
+    space_2d_fut S[2];
 
     // vector containining 3d coordinates of the points in the plane
     plane_3d P;
@@ -142,6 +153,9 @@ public:
         this->error_linf = 0.0;
         this->test = test;
         this->next = 1;
+        // setting the global variable c_2d which is a constant for this test case
+        // as per the inputs
+        c_2d = (k * 8)/ pow(eps * dh, 4);
 
         P.resize(nx * ny * np * np);
         for(long sx = 0; sx < nx*np; ++sx)
@@ -152,14 +166,19 @@ public:
             }
         }
 
-        for (space_2d& s: S)
+        for(space_2d_fut &s : S)
             s.resize(np * np);
+        
+        // resizing the global temperature grid for quick access for threads
+        for(space_2d &t : temperature_grid)
+            t.resize(np * np);
 
         auto range = boost::irange((long)0, np * np);
         hpx::parallel::for_each(hpx::parallel::execution::par, std::begin(range), std::end(range),
             [this](std::size_t i)
             {
                 this->S[0][i] = hpx::make_ready_future(partition_space(nx, ny, i % np, i / np));
+                temperature_grid[0][i] = hpx::util::unwrap(S[0][i]);
             }
         );
     }
@@ -288,8 +307,8 @@ public:
 
     // inserting the rectangles which are just above, below and on the sides of the given partition
     // into the unordered_map used to index the squares already inserted into the vector
-    static void add_neighbour_rectangle(long lx, long ly, long rx, long ry, space_2d &all_squares
-                       , space_2d &neighbour_squares, std::unordered_map<int, int> &index)
+    static void add_neighbour_rectangle(long lx, long ly, long rx, long ry, space_2d_fut &all_squares
+                       , space_2d_fut &neighbour_squares)
     {
         for(long sx = lx; sx < rx+nx; sx+=nx)
         {
@@ -297,11 +316,7 @@ public:
             {
                 if(sx < 0 || sx >= nx*np || sy < 0 || sy >= ny*np) continue;
 
-                if(index.find(grid_loc(sx, sy)) == index.end())
-                {
-                    index[grid_loc(sx, sy)] = neighbour_squares.size();
-                    neighbour_squares.push_back(all_squares[grid_loc(sx, sy)]);
-                }
+                neighbour_squares.push_back(all_squares[grid_loc(sx, sy)]);
             }
         }
     }
@@ -309,19 +324,22 @@ public:
     //testing operator to verify correctness
     static inline double w(long pos_x, long pos_y, long time)
     {
-        return cos(2 * PI * (time * dt)) 
-                * sin(2 * PI * (pos_x * dh))
-                * sin(2 * PI * (pos_y * dh));
+        return cos(2 * M_PI * (time * dt)) 
+                * sin(2 * M_PI * (pos_x * dh))
+                * sin(2 * M_PI * (pos_y * dh));
     }
 
     //condition to enforce the boundary conditions for the divided partitions
-    static inline double boundary(long pos_x, long pos_y, const std::vector<partition_space> &neighbour_squares, 
-                     std::unordered_map<int, int> index)
+    static inline double boundary(long pos_x, long pos_y, long next)
     {
         if(pos_x >= 0 && pos_x < nx * np && pos_y >= 0 && pos_y < ny * np)
-            return neighbour_squares[index[grid_loc(pos_x, pos_y)]][mesh_loc(pos_x, pos_y)];
+        {
+            return temperature_grid[next][grid_loc(pos_x, pos_y)][mesh_loc(pos_x, pos_y)];
+        }
         else
+        {
             return 0;
+        }
     }
 
     //condition to enforce the boundary conditions for the tests
@@ -350,9 +368,9 @@ public:
     //Following function adds the external source to the 2d nonlocal heat equation
     static double sum_local_test(long pos_x, long pos_y, long time)
     {
-        double result_local = - (2 * PI * sin(2 * PI * (time * dt)) 
-                                * sin(2 * PI * (pos_x * dh))
-                                * sin(2 * PI * (pos_y * dh)));
+        double result_local = - (2 * M_PI * sin(2 * M_PI * (time * dt)) 
+                                * sin(2 * M_PI * (pos_x * dh))
+                                * sin(2 * M_PI * (pos_y * dh)));
         double w_position = w(pos_x, pos_y, time);
         long len_line = 0;
 
@@ -373,12 +391,11 @@ public:
 
     // Our operator to find sum of 'eps' radius circle in vicinity of point P(x,y)
     // Represent circle as a series of horizaontal lines of thickness 'dh'
-    static double sum_local(long pos_x, long pos_y, const std::vector<partition_space> &neighbour_squares, 
-                     const std::unordered_map<int, int> &index)
+    static double sum_local(long pos_x, long pos_y, long current)
     {
         double result_local = 0.0;
         long len_line = 0;
-        double pos_val = boundary(pos_x, pos_y, neighbour_squares, index);
+        double pos_val = boundary(pos_x, pos_y, current);
 
         for(long sx = pos_x-eps; sx <= pos_x+eps; ++sx)
         {
@@ -387,7 +404,7 @@ public:
             {
                 result_local += influence_function(distance(pos_x, pos_y, sx, sy))
                                 * c_2d
-                                * (boundary(sx, sy, neighbour_squares, index) - pos_val)
+                                * (boundary(sx, sy, current) - pos_val)
                                 * (dh * dh);
             }
         }
@@ -396,20 +413,20 @@ public:
     }
 
     // partition of nx * ny cells which will be processed by a single thread
-    static partition_space sum_local_partition(const std::vector<partition_space> &neighbour_squares, 
-                                       const std::unordered_map<int, int> &index, long time, bool test)
+    static partition_space sum_local_partition(partition_space middle, const std::vector<partition_space> &neighbour_squares, 
+                                               long time, bool test)
     {
-        const partition_space& middle = neighbour_squares[0];
-        
         long size = middle.size();
         long gx = middle.gx, gy = middle.gy;
-        partition_space next(size, gx, gy);
+        partition_space &next = temperature_grid[(time+1)%2][get_loc(gx, gy, np)];
+
+        next = partition_space(nx, ny, gx, gy);
 
         for(long sx = 0; sx < nx; ++sx)
         {
             for(long sy = 0; sy < ny; ++sy)
             {
-                next[get_loc(sx, sy)] = middle[get_loc(sx, sy)] + (sum_local(sx + gx*nx, sy + gy*ny, neighbour_squares, index) * dt);
+                next[get_loc(sx, sy)] = middle[get_loc(sx, sy)] + (sum_local(sx + gx*nx, sy + gy*ny, time%2) * dt);
                 if(test)
                     next[get_loc(sx, sy)] += sum_local_test(sx + gx*nx, sy + gy*ny, time) * dt;
             }
@@ -436,20 +453,17 @@ public:
             {
                 for(long gy = 0; gy < np; ++gy)
                 {
-                    space_2d vector_deps;
-                    std::unordered_map<int, int> index;
-                    
-                    index[get_loc(gx, gy, np)] = 0;
-                    vector_deps.push_back(S[current][get_loc(gx, gy, np)]);
+                    // vector of dependent grid squares for a particular grid squares
+                    space_2d_fut vector_deps;
                     
                     // add dependent neighbouring squares
                     // for now they are added assuming it to be a big rectangle
                     // in the future these additions can be in form of 4 sectors for 4 corners 
                     // and 4 rectangles for top, bottom, left and right of the rectangle
-                    add_neighbour_rectangle(gx*nx-eps, gy*ny-eps, gx*nx+nx+eps, gy*ny+ny+eps, S[current], vector_deps, index);
+                    add_neighbour_rectangle(gx*nx-eps, gy*ny-eps, gx*nx+nx+eps, gy*ny+ny+eps, S[current], vector_deps);
 
                     // represent dependencies using hpx dataflow
-                    S[next][get_loc(gx, gy, np)] = hpx::dataflow(hpx::launch::async, Op, vector_deps, index, t, test);
+                    S[next][get_loc(gx, gy, np)] = hpx::dataflow(hpx::launch::async, Op, S[current][get_loc(gx, gy, np)], vector_deps, t, test);
                 }
             }
 
@@ -458,7 +472,7 @@ public:
             if ((t % nd) == 0)
             {
                 S[next][0].then(
-                    [&sem, t](partition &&)
+                    [&sem, t](partition_fut &&)
                     {
                         // inform semaphore about new lower limit
                         sem.signal(t);
@@ -469,6 +483,8 @@ public:
             // will resume this thread once the computation has caught up
             sem.wait(t);
 
+            // launch a seperate thread for collecting the logging data from 
+            // various threads and output in the required files
             if(t % nlog == 0)
                 hpx::dataflow(hpx::launch::async, 
                               hpx::util::unwrapping(&solver::log_csv_vtk),
@@ -478,8 +494,11 @@ public:
                               test);
         }
 
+        // required for correctness for the case when nt = 0
+        // because in that case next won't be set in the above for loop
         next = nt % 2;
 
+        // wait for all the grids to be computed before we computing the errors
         hpx::wait_all(S[next]);
 
         //testing the code for correctness
@@ -501,10 +520,6 @@ int batch_tester(long nd, long nlog)
     for(long i = 0; i < num_tests; ++i)
     {
         std::cin >> nx >> ny >> np >> nt >> eps >> k >> dt >> dh;
-
-        // setting the global variable c_2d which is a constant for this test case
-        // as per the inputs
-        c_2d = (k * 8)/ pow(eps * dh, 4);
         
         // Create the solver object
         solver solve(nt, nd, nlog, 1);
@@ -514,7 +529,6 @@ int batch_tester(long nd, long nlog)
         if (solve.error_l2 / (double)(nx * ny * np * np) > 1e-6)
         {
             test_failed = 1;
-            std::cout << i << " " << solve.error_l2 / (double)(nx * ny * np * np) << std::endl;
             break;
         }
     }
@@ -534,9 +548,6 @@ int hpx_main(hpx::program_options::variables_map& vm)
     std::uint64_t nd = vm["nd"].as<std::uint64_t>();   // Depth for which dependency tree is allowed to grow
     std::uint64_t nlog = vm["nlog"].as<std::uint64_t>();   // Number of time steps to log the results
     bool test = vm["test"].as<bool>();
-        
-    // setting the global variable c_2d which is a constant
-    c_2d = (k * 8)/ pow(eps * dh, 4);
 
     if (vm.count("no-header"))
         header = false;

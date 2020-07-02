@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <iostream>
 #include <vector>
 #include <math.h>
@@ -20,9 +21,6 @@
 #include "../include/point.h"
 #include "../include/print_time_results.hpp"
 #include "../include/writer.h"
-
-//mathematical constant PI
-#define PI 3.14159265
 
 bool header = 1;
 double k = 1 ;     // heat transfer coefficient
@@ -212,8 +210,8 @@ public:
         {
             for(long sy = 0; sy < ny; ++sy)
             {
-                S[0][get_loc(sx, sy)] = sin(2 * PI * (sx * dh))
-                    *sin(2 * PI * (sy * dh));
+                S[0][get_loc(sx, sy)] = sin(2 * M_PI * (sx * dh))
+                    *sin(2 * M_PI * (sy * dh));
             }
         }
     }
@@ -233,9 +231,9 @@ public:
     //testing operator to verify correctness
     inline double w(long pos_x, long pos_y, long time)
     {
-        return cos(2 * PI * (time * dt)) 
-                * sin(2 * PI * (pos_x * dh))
-                * sin(2 * PI * (pos_y * dh));
+        return cos(2 * M_PI * (time * dt)) 
+                * sin(2 * M_PI * (pos_x * dh))
+                * sin(2 * M_PI * (pos_y * dh));
     }
 
     //condition to enforce the boundary conditions
@@ -267,9 +265,9 @@ public:
     //Following function adds the external source to the 2d nonlocal heat equation
     double sum_local_test(long pos_x, long pos_y, long time)
     {
-        double result_local = - (2 * PI * sin(2 * PI * (time * dt)) 
-                                * sin(2 * PI * (pos_x * dh))
-                                * sin(2 * PI * (pos_y * dh)));
+        double result_local = - (2 * M_PI * sin(2 * M_PI * (time * dt)) 
+                                * sin(2 * M_PI * (pos_x * dh))
+                                * sin(2 * M_PI * (pos_y * dh)));
         double w_position = w(pos_x, pos_y, time);
         long len_line = 0;
 
