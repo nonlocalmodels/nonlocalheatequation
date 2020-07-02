@@ -416,7 +416,6 @@ public:
     static partition_space sum_local_partition(partition_space middle, const std::vector<partition_space> &neighbour_squares, 
                                                long time, bool test)
     {
-        long size = middle.size();
         long gx = middle.gx, gy = middle.gy;
         partition_space &next = temperature_grid[(time+1)%2][get_loc(gx, gy, np)];
 
