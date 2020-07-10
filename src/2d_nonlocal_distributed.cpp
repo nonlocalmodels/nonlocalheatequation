@@ -498,12 +498,11 @@ public:
         double result_local = - (2 * M_PI * sin(2 * M_PI * (time * dt)) 
                                 * sin(2 * M_PI * (pos_x * dh))
                                 * sin(2 * M_PI * (pos_y * dh)));
-        long len_line = 0;
         double w_position = w(pos_x, pos_y, time);
 
         for(long sx = pos_x-eps; sx <= pos_x+eps; ++sx)
         {
-            len_line = len_1d_line(std::abs((long)pos_x - (long)sx));
+            long len_line = len_1d_line(std::abs((long)pos_x - (long)sx));
             for(long sy = pos_y-len_line; sy <= pos_y+len_line; ++sy)
             {
                 result_local -= influence_function(distance(pos_x, pos_y, sx, sy))
@@ -521,12 +520,11 @@ public:
     static double sum_local(long pos_x, long pos_y, const std::vector<partition_space> &all_squares)
     {
         double result_local = 0.0;
-        long len_line = 0;
         double pos_val = boundary(pos_x, pos_y, all_squares);
 
         for(long sx = pos_x-eps; sx <= pos_x+eps; ++sx)
         {
-            len_line = len_1d_line(std::abs((long)pos_x - (long)sx));
+            long len_line = len_1d_line(std::abs((long)pos_x - (long)sx));
             for(long sy = pos_y-len_line; sy <= pos_y+len_line; ++sy)
             {
                 result_local += influence_function(distance(pos_x, pos_y, sx, sy))
