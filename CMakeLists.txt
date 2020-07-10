@@ -43,6 +43,11 @@ add_hpx_executable(2d_nonlocal_async
     DEPENDENCIES LibsModule
     COMPONENT_DEPENDENCIES iostreams)
 
+add_hpx_executable(2d_nonlocal_distributed
+    SOURCES ./src/2d_nonlocal_distributed.cpp
+    DEPENDENCIES LibsModule
+    COMPONENT_DEPENDENCIES iostreams)
+
 enable_testing()
 
 # test for checking the correctness of 1d nonlocal equation's serial implementation
@@ -88,5 +93,21 @@ set_tests_properties(Test_2d_async
     PROPERTIES
     PASS_REGULAR_EXPRESSION "Tests Passed")
 set_tests_properties(Test_2d_async
+    PROPERTIES
+    FAIL_REGULAR_EXPRESSION "Tests Failed")
+
+# test for checking the correctness of 2d distributed equation's asynchronous implementation
+# test what         : correctness for large epsilon, small epsilon, large number paritions, small number of paritions
+#                     larger number timesteps, various time and space discretizations
+# test how          : parameters will be inputted from the file '2d_async.txt' file in 'tests' folder as described below
+# first line        : number of test cases
+# from second line  : actual parameters inputs to be tested
+# order of inputs   : nx, ny, np, nt, eps, k, dt, dh
+# Note              : Please refer to 'program_options' in 'main' function for '2d_nonlocal_async.cpp' file in 'src' folder
+add_test(NAME Test_2d_distributed COMMAND sh -c "./2d_nonlocal_distributed --test_batch < ../tests/2d_async.txt")
+set_tests_properties(Test_2d_distributed
+    PROPERTIES
+    PASS_REGULAR_EXPRESSION "Tests Passed")
+set_tests_properties(Test_2d_distributed
     PROPERTIES
     FAIL_REGULAR_EXPRESSION "Tests Failed")
