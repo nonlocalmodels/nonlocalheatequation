@@ -133,7 +133,7 @@ struct partition_space_server
     // construct new instances
     partition_space_server() {}
 
-    partition_space_server(partition_space const& data)
+    explicit partition_space_server(partition_space const& data)
       : data_(data)
     {}
 
@@ -200,7 +200,7 @@ struct partition_space_client
     {}
 
     // Attach a future representing a (possibly remote) partition.
-    partition_space_client(hpx::future<hpx::id_type> && id)
+    explicit partition_space_client(hpx::future<hpx::id_type> && id)
       : base_type(std::move(id))
     {}
 
@@ -498,8 +498,8 @@ public:
         double result_local = - (2 * M_PI * sin(2 * M_PI * (time * dt)) 
                                 * sin(2 * M_PI * (pos_x * dh))
                                 * sin(2 * M_PI * (pos_y * dh)));
-        double w_position = w(pos_x, pos_y, time);
         long len_line = 0;
+        double w_position = w(pos_x, pos_y, time);
 
         for(long sx = pos_x-eps; sx <= pos_x+eps; ++sx)
         {
