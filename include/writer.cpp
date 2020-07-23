@@ -19,7 +19,8 @@
 
 rw::writer::VtkWriter::VtkWriter(const std::string &filename,
                                  const std::string &compress_type)
-    : d_compressType(compress_type), d_writer_p(vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New()) {
+    : d_compressType(compress_type),
+      d_writer_p(vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New()) {
   std::string f = filename + ".vtu";
 
   //   d_writer_p = vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
@@ -39,7 +40,6 @@ void rw::writer::VtkWriter::appendNodes(const std::vector<util::Point3> *nodes,
   d_grid_p = vtkSmartPointer<vtkUnstructuredGrid>::New();
   d_grid_p->SetPoints(points);
 }
-
 
 void rw::writer::VtkWriter::appendPointData(const std::string &name,
                                             const std::vector<uint8_t> *data) {
@@ -137,8 +137,6 @@ void rw::writer::VtkWriter::appendPointData(
   d_grid_p->GetPointData()->AddArray(array);
 }
 
-
-
 void rw::writer::VtkWriter::appendCellData(const std::string &name,
                                            const std::vector<float> *data) {
   auto array = vtkSmartPointer<vtkDoubleArray>::New();
@@ -153,8 +151,6 @@ void rw::writer::VtkWriter::appendCellData(const std::string &name,
 
   d_grid_p->GetCellData()->AddArray(array);
 }
-
-
 
 void rw::writer::VtkWriter::addTimeStep(const double &timestep) {
   auto t = vtkDoubleArray::New();
