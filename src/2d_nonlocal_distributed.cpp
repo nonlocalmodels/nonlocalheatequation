@@ -28,6 +28,7 @@
 #include <valarray>
 #include <algorithm>
 #include <fstream>
+#include <string.h>
 
 #include "../include/point.h"
 #include "../include/print_time_results.hpp"
@@ -36,28 +37,33 @@
 bool header = 1;
 double k = 1;       // heat transfer coefficient
 double dt = 1.;     // time step
-double dh = 1.;     // grid spacing
-long nx = 25;       // Number of grid points in x dimension
-long ny = 25;       // Number of grid points in y dimension
-long np = 5;        // Number of partitions we want to break the grid into
-long nl = 1;        // Number of localities available for distributing the data
-long eps = 5;       // Epsilon for influence zone of a point
+double dh = 0.005;  // grid spacing
+long nx = 20;       // Number of grid points in x dimension
+long ny = 20;       // Number of grid points in y dimension
+long npx = 10;  // Number of partitions we want to break the grid in x-dimension
+long npy = 10;  // Number of partitions we want to break the grid in y-dimension
+long nl = 1;    // Number of localities available for distributing the data
+long eps = 5;   // Epsilon for influence zone of a point
 double c_2d = 0.0;  // 'c' to be used in nonlocal equation for 2d case when
                     // J(influence function) = 1
+std::vector<int> partition_domain;
 
 // operator for getting the location of 2d point in 1d representation
 inline long get_loc(long x, long y, long nx = nx) { return x + y * nx; }
 
 // operator for getting 2d coordinate of grid square in which the space has been
 // divided
-inline long grid_loc(long x, long y) { return get_loc(x / nx, y / ny, np); }
+inline long grid_loc(long x, long y) { return get_loc(x / nx, y / ny, npx); }
 
 // operator for getting 2d coordinate of a point within the grid square
 inline long mesh_loc(long x, long y) { return get_loc(x % nx, y % ny); }
 
 // function to get the localoty id of a particular partition
-inline std::size_t locidx(std::size_t i, std::size_t np, std::size_t nl) {
-  return (i * nl) / (np * np);
+inline std::size_t locidx(std::size_t i, std::size_t nl) {
+  if (partition_domain.size() == 0)
+    return (i * nl) / (npx * npy);
+  else
+    return partition_domain[i];
 }
 
 // A small square partition of the original space in which we have divided the
@@ -67,7 +73,7 @@ class partition_space {
   typedef hpx::serialization::serialize_buffer<double> buffer_type;
 
  public:
-  // coordinates of the grid point corresponding the np * np squares in the
+  // coordinates of the grid point corresponding the npx * npy squares in the
   // partition
   long gx, gy;
 
@@ -211,7 +217,7 @@ class solver {
   // Note that the plane is actually stored in a 1d fashion
   typedef std::vector<point_3d> plane_3d;
 
-  // partitioning the 2d space into np * np small squares which constitute a
+  // partitioning the 2d space into npx * npy small squares which constitute a
   // partition of space
   typedef hpx::shared_future<partition_space> partition_fut;
 
@@ -239,7 +245,7 @@ class solver {
   std::vector<hpx::id_type> localities;
 
   // constructor to initialize class variables and allocate
-  solver(long nt, long nlog, bool test) {
+  solver(long nt, long nlog, bool test, const std::string &filename = "None") {
     this->nt = nt;
     this->nlog = nlog;
     this->current = 0;
@@ -248,12 +254,15 @@ class solver {
     this->test = test;
     this->next = 1;
 
+    // take parameters input from a file
+    if (filename != "None") param_file_input(filename);
+
     // forming the vector of localities id's and assigning the 'nl'
     std::vector<hpx::id_type> all_localities = hpx::find_all_localities();
 
-    // checking if the number of partitions is more than the number of
+    // checking if the number of partitions is less than the number of
     // localities
-    for (long idx = 0; idx < std::min((long)all_localities.size(), np * np);
+    for (long idx = 0; idx < std::min((long)all_localities.size(), npx * npy);
          ++idx) {
       this->localities.push_back(all_localities[idx]);
     }
@@ -263,19 +272,43 @@ class solver {
     // as per the inputs
     c_2d = (k * 8) / pow(eps * dh, 4);
 
-    P.resize(nx * ny * np * np);
-    for (long sx = 0; sx < nx * np; ++sx) {
-      for (long sy = 0; sy < ny * np; ++sy) {
-        P[sx + sy * (nx * np)] = point_3d(sx, sy, 0);
+    P.resize(nx * ny * npx * npy);
+    for (long sx = 0; sx < nx * npx; ++sx) {
+      for (long sy = 0; sy < ny * npy; ++sy) {
+        P[sx + sy * (nx * npx)] = point_3d(sx, sy, 0);
+      }
+    }
+    nl = this->localities.size();
+
+    for (space_2d& s : S) s.resize(npx * npy);
+
+    // initial conditions for testing the correctness
+    for (long i = 0; i < npx * npy; ++i)
+      S[0][i] = partition_space_client(this->localities[locidx(i, nl)], nx, ny,
+                                       i % npx, i / npx);
+  }
+
+  void param_file_input(const std::string &filename) {
+    char char_array[filename.length() + 1];
+    strcpy(char_array, filename.c_str());
+
+    std::ifstream infile;
+    infile.open(char_array);
+
+    if (infile) {
+      std::size_t px, py, loc;
+      infile >> nx >> ny >> npx >> npy >> dh;
+      partition_domain.resize(npx * npy);
+
+      for (long idx = 0; idx < npx; ++idx) {
+        for (long idy = 0; idy < npy; ++idy) {
+          infile >> px >> py >> loc;
+          partition_domain[get_loc(px, py, npx)] = loc;
+        }
       }
     }
 
-    for (space_2d& s : S) s.resize(np * np);
-
-    // initial conditions for testing the correctness
-    for (long i = 0; i < np * np; ++i)
-      S[0][i] = partition_space_client(localities[locidx(i, np, nl)], nx, ny,
-                                       i % np, i / np);
+    infile.close();
   }
 
   // function to compute l2 norm of the solution
@@ -283,8 +316,8 @@ class solver {
     auto solution = hpx::util::unwrap(vector_get_data(S[next]));
     error_l2 = 0;
 
-    for (long sx = 0; sx < nx * np; ++sx)
-      for (long sy = 0; sy < ny * np; ++sy)
+    for (long sx = 0; sx < nx * npx; ++sx)
+      for (long sy = 0; sy < ny * npy; ++sy)
         error_l2 += std::pow(
             solution[grid_loc(sx, sy)][mesh_loc(sx, sy)] - w(sx, sy, time), 2);
   }
@@ -294,8 +327,8 @@ class solver {
     auto solution = hpx::util::unwrap(vector_get_data(S[next]));
     error_linf = 0;
 
-    for (long sx = 0; sx < nx * np; ++sx)
-      for (long sy = 0; sy < ny * np; ++sy)
+    for (long sx = 0; sx < nx * npx; ++sx)
+      for (long sy = 0; sy < ny * npy; ++sy)
         error_linf =
             std::max(std::abs(solution[grid_loc(sx, sy)][mesh_loc(sx, sy)] -
                               w(sx, sy, time)),
@@ -312,8 +345,8 @@ class solver {
 
     if (cmp) {
       auto solution = hpx::util::unwrap(vector_get_data(S[next]));
-      for (long sx = 0; sx < nx * np; ++sx) {
-        for (long sy = 0; sy < ny * np; ++sy) {
+      for (long sx = 0; sx < nx * npx; ++sx) {
+        for (long sy = 0; sy < ny * npy; ++sy) {
           std::cout << "sx: " << sx << " sy: " << sy
                     << " Expected: " << w(sx, sy, nt) << " Actual: "
                     << solution[grid_loc(sx, sy)][mesh_loc(sx, sy)]
@@ -328,8 +361,8 @@ class solver {
   void print_soln() {
     auto solution = hpx::util::unwrap(vector_get_data(S[next]));
 
-    for (long sx = 0; sx < nx * np; ++sx) {
-      for (long sy = 0; sy < ny * np; ++sy) {
+    for (long sx = 0; sx < nx * npx; ++sx) {
+      for (long sy = 0; sy < ny * npy; ++sy) {
         std::cout << "S[" << sx << "][" << sy
                   << "] = " << solution[grid_loc(sx, sy)][mesh_loc(sx, sy)]
                   << " ";
@@ -350,8 +383,8 @@ class solver {
     std::ofstream outfile;
     outfile.open(simulate_fname, std::ios_base::app);
 
-    for (long sx = 0; sx < nx * np; ++sx) {
-      for (long sy = 0; sy < ny * np; ++sy) {
+    for (long sx = 0; sx < nx * npx; ++sx) {
+      for (long sy = 0; sy < ny * npy; ++sy) {
         outfile << time << "," << sx << "," << sy << ","
                 << temp_data[grid_loc(sx, sy)][mesh_loc(sx, sy)] << ","
                 << w(sx, sy, time) << ","
@@ -372,13 +405,13 @@ class solver {
     // vtu file name for writing the vtk data
     const std::string fname = "../out_vtk/simulate_" + std::to_string(time);
     rw::writer::VtkWriter vtk_logger(fname);
-    std::vector<double> vector_data(nx * ny * np * np);
+    std::vector<double> vector_data(nx * ny * npx * npy);
 
     vtk_logger.appendNodes(&coord);
 
-    for (long sx = 0; sx < nx * np; ++sx)
-      for (long sy = 0; sy < ny * np; ++sy)
-        vector_data[sy * nx * np + sx] =
+    for (long sx = 0; sx < nx * npx; ++sx)
+      for (long sy = 0; sy < ny * npy; ++sy)
+        vector_data[sy * nx * npx + sx] =
             temp_data[grid_loc(sx, sy)][mesh_loc(sx, sy)];
 
     vtk_logger.appendPointData("Temperature", &vector_data);
@@ -391,8 +424,8 @@ class solver {
     if (test) {
       double error_l2 = 0, error_linf = 0;
 
-      for (long sx = 0; sx < nx * np; ++sx) {
-        for (long sy = 0; sy < ny * np; ++sy) {
+      for (long sx = 0; sx < nx * npx; ++sx) {
+        for (long sy = 0; sy < ny * npy; ++sy) {
           error_linf =
               std::max(std::abs(temp_data[grid_loc(sx, sy)][mesh_loc(sx, sy)] -
                                 w(sx, sy, time)),
@@ -422,7 +455,7 @@ class solver {
                                       space_2d& neighbour_squares) {
     for (long sx = lx; sx < rx + nx; sx += nx) {
       for (long sy = ly; sy < ry + ny; sy += ny) {
-        if (sx < 0 || sx >= nx * np || sy < 0 || sy >= ny * np) continue;
+        if (sx < 0 || sx >= nx * npx || sy < 0 || sy >= ny * npy) continue;
 
         neighbour_squares.push_back(all_squares[grid_loc(sx, sy)]);
       }
@@ -438,7 +471,7 @@ class solver {
   // condition to enforce the boundary conditions for the divided partitions
   static inline double boundary(
       long pos_x, long pos_y, const std::vector<partition_space>& all_squares) {
-    if (pos_x >= 0 && pos_x < nx * np && pos_y >= 0 && pos_y < ny * np)
+    if (pos_x >= 0 && pos_x < nx * npx && pos_y >= 0 && pos_y < ny * npy)
       return all_squares[grid_loc(pos_x, pos_y)][mesh_loc(pos_x, pos_y)];
     else
       return 0;
@@ -446,7 +479,7 @@ class solver {
 
   // condition to enforce the boundary conditions for the tests
   static inline double boundary(long pos_x, long pos_y, double val) {
-    if (pos_x >= 0 && pos_x < nx * np && pos_y >= 0 && pos_y < ny * np)
+    if (pos_x >= 0 && pos_x < nx * npx && pos_y >= 0 && pos_y < ny * npy)
       return val;
     else
       return 0;
@@ -523,8 +556,7 @@ class solver {
       bool test) {
     // all_squares is a vector with partitions with pointers to valid partitions
     // to only those neighbours who affect the temperature at the middle
-    // partition std::vector<partition_space> all_squares; all_squares.resize(np
-    // * np);
+    // partition
 
     hpx::shared_future<partition_space> middle_data = middle.get_data();
 
@@ -532,12 +564,12 @@ class solver {
         middle_data.then(hpx::util::unwrapping(
             [time, test](partition_space const& mid) -> partition_space {
               std::vector<partition_space> all_squares;
-              all_squares.resize(np * np);
+              all_squares.resize(npx * npy);
               // All local operations are performed once the middle data of
               // the previous time step becomes available.
               long gx = mid.gx, gy = mid.gy;
               partition_space next(mid.size(), gx, gy);
-              all_squares[get_loc(gx, gy, np)] = mid;
+              all_squares[get_loc(gx, gy, npx)] = mid;
 
               for (long sx = eps + 1; sx < nx - eps - 1; ++sx) {
                 for (long sy = eps + 1; sy < ny - eps - 1; ++sy) {
@@ -563,14 +595,14 @@ class solver {
           // Calculate the missing boundary elements once the
           // corresponding data has become available.
           std::vector<partition_space> all_squares;
-          all_squares.resize(np * np);
+          all_squares.resize(npx * npy);
           long gx = mid.gx, gy = mid.gy;
 
           // assign only those partition pointers which are valid neighbours for
           // a particular square in the grid
           for (long idx = 0; idx < neighbour_squares.size(); ++idx) {
             all_squares[get_loc(neighbour_squares[idx].gx,
-                                neighbour_squares[idx].gy, np)] =
+                                neighbour_squares[idx].gy, npx)] =
                 neighbour_squares[idx];
           }
 
@@ -641,8 +673,8 @@ class solver {
 
 HPX_PLAIN_ACTION(solver::sum_local_partition, sum_local_partition_action);
 
-// do all the work on 'nx * ny' data points for each of 'np * np' partitions for
-// 'nt' time steps
+// do all the work on 'nx * ny' data points for each of 'npx * npy' partitions
+// for 'nt' time steps
 void solver::do_work() {
   // Actual time step loop
   for (long t = 0; t < nt; ++t) {
@@ -650,11 +682,11 @@ void solver::do_work() {
     next = (t + 1) % 2;
 
     sum_local_partition_action act;
-    for (long gx = 0; gx < np; ++gx) {
-      for (long gy = 0; gy < np; ++gy) {
+    for (long gx = 0; gx < npx; ++gx) {
+      for (long gy = 0; gy < npy; ++gy) {
         // we execute the action on the locality of the middle partition
         auto Op = hpx::util::bind_front(
-            act, localities[locidx(get_loc(gx, gy, np), np, nl)]);
+            act, localities[locidx(get_loc(gx, gy, npx), nl)]);
 
         // vector of dependent grid squares for a particular grid squares
         space_2d vector_deps;
@@ -669,8 +701,8 @@ void solver::do_work() {
                                 S[current], vector_deps);
 
         // represent dependencies using hpx dataflow
-        S[next][get_loc(gx, gy, np)] = hpx::dataflow(
-            hpx::launch::async, Op, S[current][get_loc(gx, gy, np)],
+        S[next][get_loc(gx, gy, npx)] = hpx::dataflow(
+            hpx::launch::async, Op, S[current][get_loc(gx, gy, npx)],
             vector_deps, t, test);
       }
     }
@@ -688,18 +720,18 @@ void solver::do_work() {
   next = nt % 2;
 
   // wait for the solution to be ready for all the partitions
-  for (int idx = 0; idx < np * np; ++idx) S[next][idx].get_data().wait();
+  for (int idx = 0; idx < npx * npy; ++idx) S[next][idx].get_data().wait();
 }
 
-// function to execute the ctests which are there in file '2d_async.txt' for
-// this file
+// function to execute the ctests which are there in file '2d_distributed.txt'
+// for this file
 int batch_tester(long nlog) {
   std::uint64_t nt, num_tests;
   bool test_failed = 0;
 
   std::cin >> num_tests;
   for (long i = 0; i < num_tests; ++i) {
-    std::cin >> nx >> ny >> np >> nt >> eps >> k >> dt >> dh;
+    std::cin >> nx >> ny >> npx >> npy >> nt >> eps >> k >> dt >> dh;
 
     // Create the solver object
     solver solve(nt, nlog, 1);
@@ -711,7 +743,7 @@ int batch_tester(long nlog) {
     // analytical and numerical solution
     solve.compute_l2(nt);
 
-    if (solve.error_l2 / (double)(nx * ny * np * np) > 1e-6) {
+    if (solve.error_l2 / (double)(nx * ny * npx * npy) > 1e-6) {
       test_failed = 1;
       break;
     }
@@ -730,7 +762,9 @@ int hpx_main(hpx::program_options::variables_map& vm) {
   std::uint64_t nt = vm["nt"].as<std::uint64_t>();  // Number of steps.
   std::uint64_t nlog =
       vm["nlog"]
-          .as<std::uint64_t>();       // Number of time steps to log the results
+          .as<std::uint64_t>();  // Number of time steps to log the results
+  std::string filename =
+      vm["file"].as<std::string>();   // Filename to take input from
   bool test = vm["test"].as<bool>();  // Boolean variable to indicate if
                                       // numerical solution needs to be tested
   if (nx <= eps)
@@ -744,7 +778,7 @@ int hpx_main(hpx::program_options::variables_map& vm) {
   if (vm.count("test_batch")) return batch_tester(nlog);
 
   // Create the solver object
-  solver solve(nt, nlog, test);
+  solver solve(nt, nlog, test, filename);
 
   // Measure execution time.
   std::uint64_t t = hpx::util::high_resolution_clock::now();
@@ -763,8 +797,8 @@ int hpx_main(hpx::program_options::variables_map& vm) {
 
   std::uint64_t const num_worker_threads = hpx::get_num_worker_threads();
   hpx::future<std::uint32_t> locs = hpx::get_num_localities();
-  print_time_results(locs.get(), num_worker_threads, elapsed, nx, ny, np, nt,
-                     header);
+  print_time_results(locs.get(), num_worker_threads, elapsed, nx, ny, npx, npy,
+                     nt, header);
 
   return hpx::finalize();
 }
@@ -782,11 +816,15 @@ int main(int argc, char* argv[]) {
                           "print generated results (default: false)")(
       "cmp", po::value<bool>()->default_value(false),
       "Print expected versus actual outputs")(
+      "file", po::value<std::string>()->default_value("None"),
+      "name of file to take input from")(
       "nx", po::value<long>(&nx)->default_value(25), "Local x dimension")(
       "ny", po::value<long>(&ny)->default_value(25), "Local y dimension")(
       "nt", po::value<std::uint64_t>()->default_value(45),
-      "Number of time steps")("np", po::value<long>(&np)->default_value(2),
-                              "Number of partitions in x and y dimension")(
+      "Number of time steps")("npx", po::value<long>(&npx)->default_value(2),
+                              "Number of partitions in x dimension")(
+      "npy", po::value<long>(&npy)->default_value(2),
+      "Number of partitions in y dimension")(
       "nlog", po::value<std::uint64_t>()->default_value(5),
       "Number of time steps to log the results")(
       "eps", po::value<long>(&eps)->default_value(5),
@@ -795,7 +833,7 @@ int main(int argc, char* argv[]) {
       "Heat transfer coefficient (default: 0.5)")(
       "dt", po::value<double>(&dt)->default_value(0.0005),
       "Timestep unit (default: 1.0[s])")(
-      "dh", po::value<double>(&dh)->default_value(0.02),
+      "dh", po::value<double>(&dh)->default_value(0.005),
       "Quantization across space")("no-header",
                                    "do not print out the csv header row");
 
