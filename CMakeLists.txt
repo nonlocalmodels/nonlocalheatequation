@@ -22,6 +22,19 @@ endif()
 find_package(HPX REQUIRED)
 find_package(VTK REQUIRED)
 
+# user needs to set GMSH_DIR and METIS_DIR variables if the libraries are installed
+# in custom locations
+find_library(GMSH_LIBRARY NAMES gmsh
+    PATHS /usr
+    /usr/local
+    ${GMSH_DIR}
+    PATH_SUFFIXES lib lib64)
+find_library(METIS_LIBRARY NAMES metis
+    PATHS /usr
+    /usr/local
+    ${METIS_DIR}
+    PATH_SUFFIXES lib lib64)
+
 include(${VTK_USE_FILE})
 
 add_library(LibsModule 
@@ -29,10 +42,8 @@ add_library(LibsModule
 )
 target_link_libraries(LibsModule ${VTK_LIBRARIES})
 
-include_directories("/usr/local/include")
-link_directories("/usr/local/lib")
 add_executable(2d_domain_decomposition ./src/domain_decomposition.cpp)
-target_link_libraries(2d_domain_decomposition metis gmsh)
+target_link_libraries(2d_domain_decomposition ${METIS_LIBRARY} ${GMSH_LIBRARY})
 
 add_hpx_executable(1d_nonlocal_serial
     SOURCES ./src/1d_nonlocal_serial.cpp
