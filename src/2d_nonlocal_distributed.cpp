@@ -278,6 +278,7 @@ class solver {
         P[sx + sy * (nx * npx)] = point_3d(sx, sy, 0);
       }
     }
+    nl = this->localities.size();
 
     for (space_2d& s : S) s.resize(npx * npy);
 
