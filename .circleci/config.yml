@@ -32,7 +32,17 @@ jobs:
         - image: docker:17.05.0-ce-git
       steps:
         - setup_remote_docker
-        - run: docker run --rm -p 8787:8787 diehlpk/nonlocalmodels:baseimage
+        - run: docker pull diehlpk/nonlocalmodels:baseimage
+        - run: docker run $(docker inspect --format="{{.Id}}" diehlpk/nonlocalmodels:baseimage) git clone https://github.com/nonlocalmodels/nonlocalheatequation.git
+        - run: docker run $(docker inspect --format="{{.Id}}" diehlpk/nonlocalmodels:baseimage) cd nonlocalheatequation && mkdir -p build
+        - run: docker run $(docker inspect --format="{{.Id}}" diehlpk/nonlocalmodels:baseimage) cd build && cmake -DCMAKE_BUILD_TYPE=Release ..
+        - run: docker run $(docker inspect --format="{{.Id}}" diehlpk/nonlocalmodels:baseimage) make -j 2
+        - run: docker tag $(docker inspect --format="{{.Id}}" diehlpk/nonlocalmodels:baseimage) diehlpk/nonlocalheatequation:latest
+        - run: docker push diehlpk/nonlocalheatequation:latest
+        - run: docker login -u $DOCKER_USER -p $DOCKER_PASS
+
+        
+
 
 
 workflows:
