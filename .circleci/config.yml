@@ -32,7 +32,7 @@ jobs:
         - image: docker:17.05.0-ce-git
       steps:
         - setup_remote_docker
-        - docker run --rm -p 8787:8787 diehlpk/nonlocalmodels:baseimage
+        - run: docker run --rm -p 8787:8787 diehlpk/nonlocalmodels:baseimage
 
 
 workflows:
