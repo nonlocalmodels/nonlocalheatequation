@@ -34,13 +34,3 @@ jobs:
         - setup_remote_docker
         - docker run --rm -p 8787:8787 diehlpk/nonlocalmodels:baseimage
 
-
-workflows:
-  build_and_delpoy:
-    jobs:
-      - build
-      - deploy:
-        requires:
-          - build
-
-
