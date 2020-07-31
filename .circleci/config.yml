@@ -28,6 +28,10 @@ jobs:
                   cd build 
                   make test
     deploy:
+      filters:
+        branches:
+          only:
+            - publish
       docker:
         - image: docker:17.05.0-ce-git
       environment:
@@ -50,7 +54,7 @@ jobs:
            name: Deploy to GitHub
            command: |
              docker login docker.pkg.github.com --username diehlpk -p ${TOKEN}
-             docker tag ${IMAGE_NAME} docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequaiton:latest
+             docker tag ${IMAGE_NAME} docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
              docker push docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
 workflows:
   version: 2
