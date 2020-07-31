@@ -11,6 +11,6 @@ RUN cd nonlocalheatequation
 
 RUN mkdir build && cd build
 
-RUN cmake .. -DHPX_IGNORE_COMPILER_COMPATIBILITY=ON -DCMAKE_BUILD_TYPE=Release 
+RUN pwd &&  cmake .. -DHPX_IGNORE_COMPILER_COMPATIBILITY=ON -DCMAKE_BUILD_TYPE=Release 
 
 RUN make -j 
