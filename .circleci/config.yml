@@ -41,6 +41,10 @@ jobs:
            command: |
               docker build -t ${IMAGE_NAME} ${IMAGE_FOLDER_NAME}
               docker images
+        - run:
+          name: Deploy
+          command: |
+
 
 workflows:
   version: 2

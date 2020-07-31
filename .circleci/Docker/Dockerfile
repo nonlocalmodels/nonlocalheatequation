@@ -9,6 +9,6 @@ RUN git clone  https://github.com/nonlocalmodels/nonlocalheatequation.git --dept
 
 RUN mkdir build && cd build
 
-RUN cmake -DHPX_IGNORE_COMPILER_COMPATIBILITY=ON -DCMAKE_BUILD_TYPE=Release ..
+RUN cmake .. -DHPX_IGNORE_COMPILER_COMPATIBILITY=ON -DCMAKE_BUILD_TYPE=Release 
 
 RUN make -j 
