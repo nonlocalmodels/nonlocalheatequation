@@ -28,10 +28,6 @@ jobs:
                   cd build 
                   make test
     deploy:
-      filters:
-        branches:
-          only:
-            - master
       docker:
         - image: docker:17.05.0-ce-git
       environment:
@@ -48,14 +44,18 @@ jobs:
         - run: 
            name: Deploy to DockerHub
            command: |
-              docker login -u $DOCKER_USER -p $DOCKER_PASS
-              docker push ${IMAGE_NAME}
+              if [ "${CIRCLE_BRANCH}" == "master" ]; then
+                docker login -u $DOCKER_USER -p $DOCKER_PASS
+                docker push ${IMAGE_NAME}
+              fi
         - run: 
            name: Deploy to GitHub
            command: |
-             docker login docker.pkg.github.com --username diehlpk -p ${TOKEN}
-             docker tag ${IMAGE_NAME} docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
-             docker push docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
+             if [ "${CIRCLE_BRANCH}" == "master" ]; then
+               docker login docker.pkg.github.com --username diehlpk -p ${TOKEN}
+               docker tag ${IMAGE_NAME} docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
+               docker push docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
+             fi
 workflows:
   version: 2
   build_and_deploy:
