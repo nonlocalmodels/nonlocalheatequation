@@ -7,7 +7,7 @@ From diehlpk/nonlocalmodels:baseimage
 
 RUN git clone  https://github.com/nonlocalmodels/nonlocalheatequation.git
 
-RUN cd nonlocalheatequation
+RUN cd /nonlocalheatequation
 
 RUN mkdir build && cd build
 
