@@ -41,6 +41,11 @@ jobs:
            command: |
               docker build -t ${IMAGE_NAME} ${IMAGE_FOLDER_NAME}
               docker images
+        -run: 
+           name: Deploy
+           command: |
+              docker login -u $DOCKER_USER -p $DOCKER_PASS
+              docker push ${IMAGE_NAME}
 
 workflows:
   version: 2
