@@ -31,7 +31,7 @@ jobs:
       docker:
         - image: docker:17.05.0-ce-git
       environment:
-        IMAGE_FOLDER_NAME: ./circleci/Docker
+        IMAGE_FOLDER_NAME: .circleci/Docker
         IMAGE_NAME: diehlpk/nonlocalheatequation:latest
       steps:
         - checkout
