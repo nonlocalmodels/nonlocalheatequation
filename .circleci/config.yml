@@ -37,8 +37,8 @@ jobs:
         - checkout
         - setup_remote_docker
         - run:
-          - name: Build Docker image
-            command: |
+           name: Build Docker image
+           command: |
               docker build -t ${IMAGE_NAME} ${IMAGE_FOLDER_NAME}
               docker images
 
