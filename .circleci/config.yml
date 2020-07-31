@@ -50,8 +50,8 @@ jobs:
            name: Deploy to GitHub
            command: |
              docker login docker.pkg.github.com --username diehlpk -p ${TOKEN}
-             docker tag ${IMAGE_NAME} docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalmodels:latest
-             docker push docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalmodels:latest
+             docker tag ${IMAGE_NAME} docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequaiton:latest
+             docker push docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
 workflows:
   version: 2
   build_and_deploy:
