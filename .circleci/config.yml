@@ -31,7 +31,7 @@ jobs:
       filters:
         branches:
           only:
-            - publish
+            - master
       docker:
         - image: docker:17.05.0-ce-git
       environment:
@@ -62,3 +62,5 @@ workflows:
     jobs:
       - build
       - deploy
+         requires:
+           - build
