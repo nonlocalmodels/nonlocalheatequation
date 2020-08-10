@@ -90,7 +90,7 @@ enable_testing()
 # from second line  : actual parameters inputs to be tested
 # order of inputs   : nx, nt, eps, k, dt, dx
 # Note              : Please refer to 'program_options' in 'main' function for '1d_nonlocal_serial.cpp' file in 'src' folder
-add_test(NAME Test_1d COMMAND sh -c "./1d_nonlocal_serial --test_batch < ../tests/1d.txt")
+add_test(NAME Test_1d COMMAND sh -c "./bin/1d_nonlocal_serial --test_batch < ../tests/1d.txt")
 set_tests_properties(Test_1d
     PROPERTIES
     PASS_REGULAR_EXPRESSION "Tests Passed")
@@ -105,7 +105,7 @@ set_tests_properties(Test_1d
 # from second line  : actual parameters inputs to be tested
 # order of inputs   : nx, ny, nt, eps, k, dt, dh
 # Note              : Please refer to 'program_options' in 'main' function for '2d_nonlocal_serial.cpp' file in 'src' folder
-add_test(NAME Test_2d COMMAND sh -c "./2d_nonlocal_serial --test_batch < ../tests/2d.txt")
+add_test(NAME Test_2d COMMAND sh -c "./bin/2d_nonlocal_serial --test_batch < ../tests/2d.txt")
 set_tests_properties(Test_2d
     PROPERTIES
     PASS_REGULAR_EXPRESSION "Tests Passed")
@@ -121,7 +121,7 @@ set_tests_properties(Test_2d
 # from second line  : actual parameters inputs to be tested
 # order of inputs   : nx, ny, np, nt, eps, k, dt, dh
 # Note              : Please refer to 'program_options' in 'main' function for '2d_nonlocal_async.cpp' file in 'src' folder
-add_test(NAME Test_2d_async COMMAND sh -c "./2d_nonlocal_async --test_batch < ../tests/2d_async.txt")
+add_test(NAME Test_2d_async COMMAND sh -c "./bin/2d_nonlocal_async --test_batch < ../tests/2d_async.txt")
 set_tests_properties(Test_2d_async
     PROPERTIES
     PASS_REGULAR_EXPRESSION "Tests Passed")
@@ -137,7 +137,7 @@ set_tests_properties(Test_2d_async
 # from second line  : actual parameters inputs to be tested
 # order of inputs   : nx, ny, npx, npy, nt, eps, k, dt, dh
 # Note              : Please refer to 'program_options' in 'main' function for '2d_nonlocal_async.cpp' file in 'src' folder
-add_test(NAME Test_2d_distributed COMMAND sh -c "./2d_nonlocal_distributed --test_batch < ../tests/2d_distributed.txt")
+add_test(NAME Test_2d_distributed COMMAND sh -c "./bin/2d_nonlocal_distributed --test_batch < ../tests/2d_distributed.txt")
 set_tests_properties(Test_2d_distributed
     PROPERTIES
     PASS_REGULAR_EXPRESSION "Tests Passed")
