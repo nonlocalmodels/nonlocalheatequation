@@ -25,10 +25,19 @@ find_package(VTK REQUIRED)
 # Set directory for all exectuables
 set(EXECUTABLE_OUTPUT_PATH "${PROJECT_BINARY_DIR}/bin")
 
+# Set the common library directory
+get_property(LIB64 GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS)
+
+if ("${LIB64}" STREQUAL "TRUE")
+    set(LIBSUFFIX 64)
+else()
+    set(LIBSUFFIX "")
+endif()
+
+set(LIBRARY_OUTPUT_PATH "${PROJECT_BINARY_DIR}/lib${LIBSUFFIX}")
+
 # Add a postfix if the libraries are build in the debug mode
 set(CMAKE_DEBUG_POSTFIX d)
-
-
 
 # user needs to set GMSH_DIR and METIS_DIR variables if the libraries are installed
 # in custom locations
