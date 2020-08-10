@@ -22,6 +22,9 @@ endif()
 find_package(HPX REQUIRED)
 find_package(VTK REQUIRED)
 
+# Set directory for all exectuables
+set(EXECUTABLE_OUTPUT_PATH "${PROJECT_BINARY_DIR}/bin")
+
 # user needs to set GMSH_DIR and METIS_DIR variables if the libraries are installed
 # in custom locations
 find_library(GMSH_LIBRARY NAMES gmsh
