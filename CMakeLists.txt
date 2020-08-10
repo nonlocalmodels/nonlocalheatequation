@@ -13,7 +13,6 @@ cmake_minimum_required(VERSION 3.10)
 
 set(BUILD_PROJECT_DESCRIPTION OFF CACHE STRING "Build project description")
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
-set(VTK_DIR "/home/pranav/vtk/build")
 
 if(BUILD_PROJECT_DESCRIPTION)
     add_subdirectory(description)
