@@ -153,9 +153,17 @@ set_tests_properties(Test_2d_distributed
     PROPERTIES
     FAIL_REGULAR_EXPRESSION "Tests Failed")
 
+
+# Build documentation
+set(Enable_Documentation FALSE CACHE BOOL "Generates target for generating the documentation")
+if(${Enable_Documentation})
+    add_subdirectory(docs)
+endif()
+
 # Install the executables and libs
 install(TARGETS 2d_nonlocal_distributed 
         LIBRARY DESTINATION lib${LIBSUFFIX}
         ARCHIVE DESTINATION lib${LIBSUFFIX}
         RUNTIME DESTINATION bin
         INCLUDES DESTINATION include)
+
