@@ -128,3 +128,9 @@ set_tests_properties(Test_2d_distributed
 set_tests_properties(Test_2d_distributed
     PROPERTIES
     FAIL_REGULAR_EXPRESSION "Tests Failed")
+
+# Build documentation
+set(Enable_Documentation FALSE CACHE BOOL "Generates target for generating the documentation")
+if(${Enable_Documentation})
+    add_subdirectory(docs)
+endif()

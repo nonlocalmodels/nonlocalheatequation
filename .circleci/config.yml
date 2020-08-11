@@ -16,7 +16,7 @@ jobs:
                 command: | 
                   mkdir -p build 
                   cd build 
-                  cmake -DCMAKE_BUILD_TYPE=Release ..
+                  cmake -DCMAKE_BUILD_TYPE=Release -DEnable_Documentation=ON ..
             - run:
                 name: Build
                 command: |  
@@ -27,6 +27,9 @@ jobs:
                 command: |
                   cd build 
                   make test
+            - run:
+                name: Documentaiton
+                command: make doc
     deploy:
       docker:
         - image: docker:17.05.0-ce-git
