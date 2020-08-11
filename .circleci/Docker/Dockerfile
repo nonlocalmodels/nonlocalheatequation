@@ -9,5 +9,5 @@ WORKDIR /app
 
 RUN git clone  https://github.com/nonlocalmodels/nonlocalheatequation.git
 
-RUN cd /app/nonlocalheatequation && mkdir build && cd build && cmake .. -DHPX_IGNORE_COMPILER_COMPATIBILITY=ON -DCMAKE_BUILD_TYPE=Release && make -j 
+RUN cd /app/nonlocalheatequation && mkdir build && cd build && cmake .. -DHPX_IGNORE_COMPILER_COMPATIBILITY=ON -DCMAKE_BUILD_TYPE=Release && make -j && sudo make install
 
