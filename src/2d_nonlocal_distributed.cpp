@@ -33,6 +33,7 @@
 #include "../include/point.h"
 #include "../include/print_time_results.hpp"
 #include "../include/writer.h"
+#include "../include/Config.h"
 
 bool header = 1;
 double k = 1;       // heat transfer coefficient
@@ -804,6 +805,10 @@ int hpx_main(hpx::program_options::variables_map& vm) {
 }
 
 int main(int argc, char* argv[]) {
+  std::cout << argv[0] << " ("
+    << MAJOR_VERSION << "."
+    << MINOR_VERSION << "."
+    << UPDATE_VERSION << ")" << std::endl;
   namespace po = hpx::program_options;
 
   po::options_description desc_commandline;
