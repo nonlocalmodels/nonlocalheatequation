@@ -29,7 +29,9 @@ jobs:
                   make test
             - run:
                 name: Documentaiton
-                command: make doc
+                command: |
+                  cd build
+                  make doc
     deploy:
       docker:
         - image: docker:17.05.0-ce-git
