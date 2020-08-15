@@ -61,9 +61,35 @@ jobs:
                docker tag ${IMAGE_NAME} docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
                docker push docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
              fi
+    documentation:
+      docker:
+        - image diehlpk/nonlocalmodels:baseimage
+      steps:
+        - checkout
+        - run:
+            name: Configure 
+            command: | 
+              mkdir -p build 
+              cd build 
+              cmake -DCMAKE_BUILD_TYPE=Release -DEnable_Documentation=ON ..
+        - run:
+            name: Documentaiton
+            command: |
+              cd build
+              make doc
+        - run:
+            command: |
+              git config --global user.name "Circle CI"
+              git config --global user.email "bot@circleci.com"
+              git checkout gh-pages
+              git add ../docs/doxy/html/*
+              git commit -m "Update documentation" ../docs/doxy/html/*
+              git push https://${TOKEN}@github.com/nonlocalmodels/nonlocalheatequation.git
+
 workflows:
   version: 2
   build_and_deploy:
     jobs:
       - build
       - deploy
+      - documentation
