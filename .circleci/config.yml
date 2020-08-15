@@ -80,14 +80,16 @@ jobs:
               make doc
         - run:
             command: |
-              git checkout gh-pages
-              git pull
-              cp -r ./docs/doxy/html/* documentation/
-              git config --global user.name "Circle CI"
-              git config --global user.email "bot@circleci.com"
-              git add ./documentation/*
-              git commit -m "Update documentation" ./documentation/*
-              git push https://${TOKEN}@github.com/nonlocalmodels/nonlocalheatequation.git
+              if [ "${CIRCLE_BRANCH}" == "master" ]; then
+                git checkout gh-pages
+                git pull
+                cp -r ./docs/doxy/html/* documentation/
+                git config --global user.name "Circle CI"
+                git config --global user.email "bot@circleci.com"
+                git add ./documentation/*
+                git commit -m "Update documentation" ./documentation/*
+                git push https://${TOKEN}@github.com/nonlocalmodels/nonlocalheatequation.git
+              fi
 
 workflows:
   version: 2
@@ -97,4 +99,6 @@ workflows:
       - deploy:
           requires:
             - build
-      - documentation
+      - documentation:
+          requires:
+            - build
