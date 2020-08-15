@@ -61,9 +61,10 @@ jobs:
                docker tag ${IMAGE_NAME} docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
                docker push docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
              fi
+
     documentation:
       docker:
-        - image diehlpk/nonlocalmodels:baseimage
+        - image: diehlpk/nonlocalmodels:baseimage
       steps:
         - checkout
         - run:
