@@ -7,6 +7,8 @@
 version: 2
 jobs:
     build:
+        branches:
+          ignore: gh-pages
         docker:
           - image: diehlpk/nonlocalmodels:baseimage
         steps:
@@ -33,6 +35,8 @@ jobs:
                   cd build
                   make doc
     deploy:
+      branches:
+        ignore: gh-pages
       docker:
         - image: docker:17.05.0-ce-git
       environment:
@@ -63,6 +67,8 @@ jobs:
              fi
 
     documentation:
+      branches:
+        ignore: gh-pages
       docker:
         - image: diehlpk/nonlocalmodels:baseimage
       steps:
@@ -82,11 +88,11 @@ jobs:
             command: |
               git checkout gh-pages
               git pull
-              cp -r ../docs/doxy/html/* documentation/
+              cp -r ./docs/doxy/html/* documentation/
               git config --global user.name "Circle CI"
               git config --global user.email "bot@circleci.com"
-              git add ../docs/doxy/html/*
-              git commit -m "Update documentation" ../docs/doxy/html/*
+              git add ./docs/doxy/html/*
+              git commit -m "Update documentation" ./docs/doxy/html/*
               git push https://${TOKEN}@github.com/nonlocalmodels/nonlocalheatequation.git
 
 workflows:
