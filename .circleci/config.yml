@@ -82,7 +82,6 @@ jobs:
             command: |
               git checkout gh-pages
               git pull
-              git rm -rf documentation/*
               cp -r ./docs/doxy/html/* documentation/
               git config --global user.name "Circle CI"
               git config --global user.email "bot@circleci.com"
