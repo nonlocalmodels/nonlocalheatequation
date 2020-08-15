@@ -70,8 +70,6 @@ jobs:
         - run:
             name: Configure 
             command: |
-              git checkout gh-pages
-              git pull
               mkdir -p build 
               cd build 
               cmake -DCMAKE_BUILD_TYPE=Release -DEnable_Documentation=ON ..
@@ -82,6 +80,9 @@ jobs:
               make doc
         - run:
             command: |
+              git checkout gh-pages
+              git pull
+              cp -r ../docs/doxy/html/* documentation/
               git config --global user.name "Circle CI"
               git config --global user.email "bot@circleci.com"
               git add ../docs/doxy/html/*
