@@ -7,8 +7,6 @@
 version: 2
 jobs:
     build:
-        branches:
-          ignore: gh-pages
         docker:
           - image: diehlpk/nonlocalmodels:baseimage
         steps:
@@ -35,8 +33,6 @@ jobs:
                   cd build
                   make doc
     deploy:
-      branches:
-        ignore: gh-pages
       docker:
         - image: docker:17.05.0-ce-git
       environment:
@@ -67,8 +63,6 @@ jobs:
              fi
 
     documentation:
-      branches:
-        ignore: gh-pages
       docker:
         - image: diehlpk/nonlocalmodels:baseimage
       steps:
