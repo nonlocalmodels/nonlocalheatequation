@@ -65,7 +65,13 @@ workflows:
   version: 2
   build_and_deploy:
     jobs:
-      - build
+      - build:
+        filters:
+          branches:
+            ignore: gh-pages
       - deploy:
+          filters:
+            branches:
+              ignore: gh-pages
           requires:
             - build
