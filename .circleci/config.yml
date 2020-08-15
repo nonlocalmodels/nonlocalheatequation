@@ -85,8 +85,8 @@ jobs:
               cp -r ./docs/doxy/html/* documentation/
               git config --global user.name "Circle CI"
               git config --global user.email "bot@circleci.com"
-              git add ./docs/doxy/html/*
-              git commit -m "Update documentation" ./docs/doxy/html/*
+              git add ./documentation/*
+              git commit -m "Update documentation" ./documentation/*
               git push https://${TOKEN}@github.com/nonlocalmodels/nonlocalheatequation.git
 
 workflows:
