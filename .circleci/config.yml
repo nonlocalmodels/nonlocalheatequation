@@ -16,7 +16,7 @@ jobs:
                 command: | 
                   mkdir -p build 
                   cd build 
-                  cmake -DCMAKE_BUILD_TYPE=Release ..
+                  cmake -DCMAKE_BUILD_TYPE=Release -DEnable_Documentation=ON ..
             - run:
                 name: Build
                 command: |  
@@ -27,3 +27,84 @@ jobs:
                 command: |
                   cd build 
                   make test
+            - run:
+                name: Documentaiton
+                command: |
+                  cd build
+                  make doc
+    deploy:
+      docker:
+        - image: docker:17.05.0-ce-git
+      environment:
+        IMAGE_FOLDER_NAME: .circleci/Docker
+        IMAGE_NAME: diehlpk/nonlocalheatequation:latest
+      steps:
+        - checkout
+        - setup_remote_docker
+        - run:
+           name: Build Docker image
+           command: |
+              docker build -t ${IMAGE_NAME} ${IMAGE_FOLDER_NAME}
+              docker images
+        - run: 
+           name: Deploy to DockerHub
+           command: |
+              if [ "${CIRCLE_BRANCH}" == "master" ]; then
+                docker login -u $DOCKER_USER -p $DOCKER_PASS
+                docker push ${IMAGE_NAME}
+              fi
+        - run: 
+           name: Deploy to GitHub
+           command: |
+             if [ "${CIRCLE_BRANCH}" == "master" ]; then
+               docker login docker.pkg.github.com --username diehlpk -p ${TOKEN}
+               docker tag ${IMAGE_NAME} docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
+               docker push docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
+             fi
+
+    documentation:
+      docker:
+        - image: diehlpk/nonlocalmodels:baseimage
+      steps:
+        - checkout
+        - run:
+            name: Configure 
+            command: |
+              mkdir -p build 
+              cd build 
+              cmake -DCMAKE_BUILD_TYPE=Release -DEnable_Documentation=ON ..
+        - run:
+            name: Documentaiton
+            command: |
+              cd build
+              make doc
+        - run:
+            command: |
+              if [ "${CIRCLE_BRANCH}" == "master" ]; then
+                git checkout gh-pages
+                git pull
+                cp -r ./docs/doxy/html/* documentation/
+                git config --global user.name "Circle CI"
+                git config --global user.email "bot@circleci.com"
+                git add ./documentation/*
+                git commit -m "Update documentation" ./documentation/*
+                git push https://${TOKEN}@github.com/nonlocalmodels/nonlocalheatequation.git
+              fi
+
+workflows:
+  version: 2
+  build_and_deploy:
+    jobs:
+      - build:
+          filters:
+            branches:
+              ignore: gh-pages
+      - deploy:
+          filters:
+            branches:
+              ignore: gh-pages
+          requires:
+            - build
+      - documentation:
+          requires:
+            - build
