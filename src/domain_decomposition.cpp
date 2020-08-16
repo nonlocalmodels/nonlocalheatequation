@@ -20,7 +20,7 @@ inline int get_loc(int x, int y, int nx) { return x + y * nx; }
  * for efficient computation in a distributed setup
  * as opposed to the orignal fine mesh, along with the number if square
  * subdomains and the size of each square subdomain
- * @param eparts locality index to which the square subdomain belongs to 
+ * @param eparts locality index to which the square subdomain belongs to
  * @param filename name of file to write the coarse mesh
  * @param mx size of each square subdomain in x dimension
  * @param my size of each square subdomain in y dimension

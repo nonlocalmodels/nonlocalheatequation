@@ -28,13 +28,13 @@
 #include <sys/time.h>
 #include <unordered_map>
 #include <valarray>
-#include <iterator> 
+#include <iterator>
 #include <algorithm>
 #include <fstream>
 #include <string.h>
-#include <queue> 
-#include <utility> 
-#include <set> 
+#include <queue>
+#include <utility>
+#include <set>
 
 #include "../include/point.h"
 #include "../include/print_time_results.hpp"
@@ -50,14 +50,18 @@ double dt = 1.;     //!< time step
 double dh = 0.005;  //!< grid spacing
 long nx = 20;       //!< Number of grid points in x dimension
 long ny = 20;       //!< Number of grid points in y dimension
-long npx = 10;  //!< Number of partitions we want to break the grid in x-dimension
-long npy = 10;  //!< Number of partitions we want to break the grid in y-dimension
-long nl = 1;    //!< Number of localities available for distributing the data
-long eps = 5;   //!< Epsilon for influence zone of a point
+long npx =
+    10;  //!< Number of partitions we want to break the grid in x-dimension
+long npy =
+    10;       //!< Number of partitions we want to break the grid in y-dimension
+long nl = 1;  //!< Number of localities available for distributing the data
+long eps = 5;       //!< Epsilon for influence zone of a point
 double c_2d = 0.0;  //!< 'c' to be used in nonlocal equation for 2d case when
                     //!< J(influence function) = 1
-std::vector<int> partition_domain;  //!< std::vector to store locality that holds each partition
-std::vector<hpx::performance_counters::performance_counter> perf_counters;  //!< std::vector of performance counters
+std::vector<int> partition_domain;  //!< std::vector to store locality that
+                                    //!< holds each partition
+std::vector<hpx::performance_counters::performance_counter>
+    perf_counters;  //!< std::vector of performance counters
 
 //! operator for getting the location of 2d point in 1d representation
 /**
@@ -68,9 +72,10 @@ std::vector<hpx::performance_counters::performance_counter> perf_counters;  //!<
  */
 inline long get_loc(long x, long y, long nx = nx) { return x + y * nx; }
 
-//! operator for getting 2d coordinate of grid square in which the space has been divided
+//! operator for getting 2d coordinate of grid square in which the space has
+//! been divided
 /**
- * Internally calls get_loc() function 
+ * Internally calls get_loc() function
  * @see get_loc()
  * @param x x coordinate in 2d cartesian coordinates
  * @param y y coordinate in 2d cartesian coordinates
@@ -80,18 +85,20 @@ inline long grid_loc(long x, long y) { return get_loc(x / nx, y / ny, npx); }
 
 //! operator for getting 2d coordinate of a point within the grid square
 /**
- * Internally calls get_loc() function 
+ * Internally calls get_loc() function
  * @see get_loc()
  * @param x x coordinate in 2d cartesian coordinates
  * @param y y coordinate in 2d cartesian coordinates
- * @return location of 2d point within a grid square in 1d array used to store the square subdomain
+ * @return location of 2d point within a grid square in 1d array used to store
+ * the square subdomain
  */
 inline long mesh_loc(long x, long y) { return get_loc(x % nx, y % ny); }
 
 //! function to get the locality id of a particular partition
 /**
  * @see partition_domain
- * @param i location of 2d point in 1d array used to store individual square subdomains
+ * @param i location of 2d point in 1d array used to store individual square
+ * subdomains
  * @param nl number of localities avaible for distributing the computation
  * @return index of locality in the localities array
  */
@@ -102,8 +109,7 @@ inline std::size_t locidx(std::size_t i, std::size_t nl) {
     return partition_domain[i];
 }
 
-void setup_counters()
-{
+void setup_counters() {
   // We need to explicitly start all counters before we can use them. For
   // certain counters this could be a no-op, in which case start will return
   // 'false'.
@@ -111,12 +117,12 @@ void setup_counters()
 
   // cannot test when the number of nodes is 1
   // because idle-rate performance counter is not available
-  if(num_loc == 1) return;
+  if (num_loc == 1) return;
   perf_counters.resize(num_loc);
 
-  for(int idx = 0; idx < num_loc; ++idx)
-  {
-    perf_counters[idx] = hpx::performance_counters::performance_counter("/threads{locality#" + std::to_string(idx) + "/total}/idle-rate");
+  for (int idx = 0; idx < num_loc; ++idx) {
+    perf_counters[idx] = hpx::performance_counters::performance_counter(
+        "/threads{locality#" + std::to_string(idx) + "/total}/idle-rate");
     perf_counters[idx].start(hpx::launch::sync);
   }
 }
@@ -131,38 +137,44 @@ class partition_space {
   //!< Data type of the serialized buffer
 
  public:
-  long gx;  //!< x coordinate of the grid point corresponding the npx * npy squares
-  long gy;  //!< y coordinate of the grid point corresponding the npx * npy squares
+  long gx;  //!< x coordinate of the grid point corresponding the npx * npy
+            //!< squares
+  long gy;  //!< y coordinate of the grid point corresponding the npx * npy
+            //!< squares
 
-/**
- * Empty constructor for initializing the partition_space class 
- */
+  /**
+   * Empty constructor for initializing the partition_space class
+   */
   explicit partition_space()
       : data_(std::allocator<double>().allocate(0), 0, buffer_type::take),
         size_(0),
         gx(0),
         gy(0) {}
 
-/**
- * Parameterized constructor for initializing the partition_space object
- * @param size size of the data buffer to be created in partition_space
- * @param gx x coordinate of the grid point corresponding the npx * npy squares
- * @param gy y coordinate of the grid point corresponding the npx * npy squares
- */
+  /**
+   * Parameterized constructor for initializing the partition_space object
+   * @param size size of the data buffer to be created in partition_space
+   * @param gx x coordinate of the grid point corresponding the npx * npy
+   * squares
+   * @param gy y coordinate of the grid point corresponding the npx * npy
+   * squares
+   */
   partition_space(std::size_t size, long gx, long gy)
       : data_(std::allocator<double>().allocate(size), size, buffer_type::take),
         size_(size),
         gx(gx),
         gy(gy) {}
 
-//! function to add test initialization for executing tests 
-/**
- * Parameterized constructor for initializing the partition_space object
- * @param nx size of square domain in x dimension
- * @param ny size of square domain in y dimension
- * @param gx x coordinate of the grid point corresponding the npx * npy squares
- * @param gy y coordinate of the grid point corresponding the npx * npy squares
- */
+  //! function to add test initialization for executing tests
+  /**
+   * Parameterized constructor for initializing the partition_space object
+   * @param nx size of square domain in x dimension
+   * @param ny size of square domain in y dimension
+   * @param gx x coordinate of the grid point corresponding the npx * npy
+   * squares
+   * @param gy y coordinate of the grid point corresponding the npx * npy
+   * squares
+   */
   partition_space(long nx, long ny, long gx, long gy)
       : data_(std::allocator<double>().allocate(nx * ny), nx * ny,
               buffer_type::take),
@@ -182,7 +194,8 @@ class partition_space {
   //! operator to return the data at some index from the given partition
   double operator[](std::size_t idx) const { return data_[idx]; }
 
-  //! operator to return the size of the data partition in partition_space object
+  //! operator to return the size of the data partition in partition_space
+  //! object
   std::size_t size() const { return size_; }
 
  private:
@@ -194,7 +207,8 @@ class partition_space {
     ar& data_& size_& gx& gy;
   }
 
-  buffer_type data_;  //!< buffer to store the temperature values for a square subdomain
+  buffer_type
+      data_;  //!< buffer to store the temperature values for a square subdomain
   std::size_t size_;  //!< size of the buffer storing the square subdomain
 };
 
@@ -205,29 +219,36 @@ struct partition_space_server
     : hpx::components::component_base<partition_space_server> {
   partition_space_server() {}
 
-/**
- * Parameterized constructor to create a partition_space_server object
- * for given temperature values in a square subdomain
- * @param data partition_space object storing temperature values in a square subdomain
- */
-  explicit partition_space_server(partition_space const& data) : data_(data){}
+  /**
+   * Parameterized constructor to create a partition_space_server object
+   * for given temperature values in a square subdomain
+   * @param data partition_space object storing temperature values in a square
+   * subdomain
+   */
+  explicit partition_space_server(partition_space const& data) : data_(data) {}
 
-/**
- * Parameterized constructor for initializing the partition_space_server object
- * @param size size of the data buffer to be created in partition_space
- * @param gx x coordinate of the grid point corresponding the npx * npy squares
- * @param gy y coordinate of the grid point corresponding the npx * npy squares
- */
+  /**
+   * Parameterized constructor for initializing the partition_space_server
+   * object
+   * @param size size of the data buffer to be created in partition_space
+   * @param gx x coordinate of the grid point corresponding the npx * npy
+   * squares
+   * @param gy y coordinate of the grid point corresponding the npx * npy
+   * squares
+   */
   partition_space_server(std::size_t size, long gx, long gy)
       : data_(size, gx, gy) {}
 
-/**
- * Parameterized constructor for initializing the partition_space_server object
- * @param nx size of square domain in x dimension
- * @param ny size of square domain in y dimension
- * @param gx x coordinate of the grid point corresponding the npx * npy squares
- * @param gy y coordinate of the grid point corresponding the npx * npy squares
- */
+  /**
+   * Parameterized constructor for initializing the partition_space_server
+   * object
+   * @param nx size of square domain in x dimension
+   * @param ny size of square domain in y dimension
+   * @param gx x coordinate of the grid point corresponding the npx * npy
+   * squares
+   * @param gy y coordinate of the grid point corresponding the npx * npy
+   * squares
+   */
   partition_space_server(long nx, long ny, long gx, long gy)
       : data_(nx, ny, gx, gy) {}
 
@@ -245,7 +266,8 @@ struct partition_space_server
                                      get_data_action);
 
  private:
-  partition_space data_;  //!< partition_space object storing temperature values which is exposed by the server
+  partition_space data_;  //!< partition_space object storing temperature values
+                          //!< which is exposed by the server
 };
 
 //! HPX_REGISTER_COMPONENT() exposes the component creation
@@ -274,33 +296,40 @@ struct partition_space_client
 
   //! Create new component on locality 'where' and initialize the held data
   /**
-   * Parameterized constructor for initializing the partition_space_server object
+   * Parameterized constructor for initializing the partition_space_server
+   * object
    * @param where locality where the held data is initialized
    * @param size size of the data buffer to be created in partition_space
-   * @param gx x coordinate of the grid point corresponding the npx * npy squares
-   * @param gy y coordinate of the grid point corresponding the npx * npy squares
+   * @param gx x coordinate of the grid point corresponding the npx * npy
+   * squares
+   * @param gy y coordinate of the grid point corresponding the npx * npy
+   * squares
    */
   partition_space_client(hpx::id_type where, std::size_t size, long gx, long gy)
       : base_type(hpx::new_<partition_space_server>(where, size, gx, gy)) {}
 
   //! Create new component on locality 'where' and initialize the held data
   /**
-   * Parameterized constructor for initializing the partition_space_server object
+   * Parameterized constructor for initializing the partition_space_server
+   * object
    * @param where locality where the held data is initialized
    * @param nx size of square domain in x dimension
    * @param ny size of square domain in y dimension
-   * @param gx x coordinate of the grid point corresponding the npx * npy squares
-   * @param gy y coordinate of the grid point corresponding the npx * npy squares
+   * @param gx x coordinate of the grid point corresponding the npx * npy
+   * squares
+   * @param gy y coordinate of the grid point corresponding the npx * npy
+   * squares
    */
   partition_space_client(hpx::id_type where, long nx, long ny, long gx, long gy)
       : base_type(hpx::new_<partition_space_server>(where, nx, ny, gx, gy)) {}
 
-/**
- * Create a new component on the locality co-located to the id 'where'. The
- * new instance will be initialized from the given partition_data
- * @param where locality where the held data is initialized
- * @param data partition_space object storing temperature values in a square subdomain
- */
+  /**
+   * Create a new component on the locality co-located to the id 'where'. The
+   * new instance will be initialized from the given partition_data
+   * @param where locality where the held data is initialized
+   * @param data partition_space object storing temperature values in a square
+   * subdomain
+   */
   partition_space_client(hpx::id_type where, partition_space const& data)
       : base_type(
             hpx::new_<partition_space_server>(hpx::colocated(where), data)) {}
@@ -324,8 +353,8 @@ struct partition_space_client
 
 /**
  * class which contains the code to solve the 2d nonlocal equation
- * in a distributed setup. The class contains functions to run the 
- * solver in a distributed setup with support for logging at regular 
+ * in a distributed setup. The class contains functions to run the
+ * solver in a distributed setup with support for logging at regular
  * intervals.
  */
 class solver {
@@ -350,33 +379,41 @@ class solver {
   space_2d S[2];  //!< alternate for space between time steps,
   //!< result of S[t%2] goes to S[(t+1)%2] at every timestep 't'
 
-  plane_3d P;    //!< vector containining 3d coordinates of the points in the plane
+  plane_3d
+      P;  //!< vector containining 3d coordinates of the points in the plane
 
-  long nt;    //!< number of timesteps
-  long nlog;  //!< Number of time steps to log the results
+  long nt;        //!< number of timesteps
+  long nlog;      //!< Number of time steps to log the results
   long nbalance;  //!< Number of time steps to run load balancing algorithm
-  bool current; //!< boolean variable to store index of current mesh which is already computed
-  bool next;    //!< boolean variable to store index of next mesh which is being computed
-  bool test;    //!< true if the analyitcal solution needs to be compared with the numerical solution
-  
+  bool current;   //!< boolean variable to store index of current mesh which is
+                  //!< already computed
+  bool next;  //!< boolean variable to store index of next mesh which is being
+              //!< computed
+  bool test;  //!< true if the analyitcal solution needs to be compared with the
+              //!< numerical solution
+
   double error_l2;    //!< l2 norm
   double error_linf;  //!< l infinity norm
 
-  std::vector<hpx::id_type> localities; //!< std::vector of id's of various available localitites for computation
+  std::vector<hpx::id_type>
+      localities;  //!< std::vector of id's of various available localitites for
+                   //!< computation
 
   //! constructor to allocate and initialize class variables
-/**
- * Internally calls get_loc() function 
- * @see partition_space_client
- * @see partition_space_server
- * @see partition_space
- * @param nt number of timesteps to execute the sover
- * @param nlog number of iterations after which we want to log 
- * @param nbalance number of time steps to run load balancing algorithm
- * @param test true if numerical solution needs to be tested against analytical solution
- * @param filename name of file to input the mesh from
- */
-  solver(long nt, long nlog, long nbalance, bool test, const std::string &filename = "None") {
+  /**
+   * Internally calls get_loc() function
+   * @see partition_space_client
+   * @see partition_space_server
+   * @see partition_space
+   * @param nt number of timesteps to execute the sover
+   * @param nlog number of iterations after which we want to log
+   * @param nbalance number of time steps to run load balancing algorithm
+   * @param test true if numerical solution needs to be tested against
+   * analytical solution
+   * @param filename name of file to input the mesh from
+   */
+  solver(long nt, long nlog, long nbalance, bool test,
+         const std::string& filename = "None") {
     this->nt = nt;
     this->nlog = nlog;
     this->nbalance = nbalance;
@@ -398,7 +435,8 @@ class solver {
     // localities
     for (long idx = 0; idx < std::min((long)all_localities.size(), npx * npy);
          ++idx) {
-      this->localities[hpx::naming::get_locality_id_from_id(all_localities[idx])] = all_localities[idx];
+      this->localities[hpx::naming::get_locality_id_from_id(
+          all_localities[idx])] = all_localities[idx];
     }
     nl = this->localities.size();
 
@@ -422,11 +460,11 @@ class solver {
                                        i % npx, i / npx);
   }
 
-/**
- * Internally calls get_loc() function 
- * @param filename name of file to input the mesh from
- */
-  void param_file_input(const std::string &filename) {
+  /**
+   * Internally calls get_loc() function
+   * @param filename name of file to input the mesh from
+   */
+  void param_file_input(const std::string& filename) {
     char char_array[filename.length() + 1];
     strcpy(char_array, filename.c_str());
 
@@ -450,9 +488,10 @@ class solver {
   }
 
   /**
- * function to compute l2 norm of the solution 
- * @param time time at which we want to check the analytical solution against numerical solution
- */
+   * function to compute l2 norm of the solution
+   * @param time time at which we want to check the analytical solution against
+   * numerical solution
+   */
   void compute_l2(long time) {
     auto solution = hpx::util::unwrap(vector_get_data(S[next]));
     error_l2 = 0;
@@ -464,9 +503,10 @@ class solver {
   }
 
   /**
- * function to compute l infinity norm of the solution 
- * @param time time at which we want to check the analytical solution against numerical solution
- */
+   * function to compute l infinity norm of the solution
+   * @param time time at which we want to check the analytical solution against
+   * numerical solution
+   */
   void compute_linf(long time) {
     auto solution = hpx::util::unwrap(vector_get_data(S[next]));
     error_linf = 0;
@@ -480,9 +520,10 @@ class solver {
   }
 
   /**
- * print error for testing
- * @param cmp true if we want the print the analytical solution comparison against the numerical solution
- */
+   * print error for testing
+   * @param cmp true if we want the print the analytical solution comparison
+   * against the numerical solution
+   */
   void print_error(bool cmp) {
     compute_l2(nt);
     compute_linf(nt);
@@ -519,12 +560,13 @@ class solver {
   }
 
   /**
- * function to perform the logging in both csv and vtk format
- * @param temp_data temperature data for 2d square subdomain
- * @param coord 3d coordinates for points in Point3 format
- * @param time time for which we are logging the results
- * @param test variable is true if we have to test the numerical solution against the analytical solution
- */
+   * function to perform the logging in both csv and vtk format
+   * @param temp_data temperature data for 2d square subdomain
+   * @param coord 3d coordinates for points in Point3 format
+   * @param time time for which we are logging the results
+   * @param test variable is true if we have to test the numerical solution
+   * against the analytical solution
+   */
   static void log_csv_vtk(std::vector<partition_space> temp_data,
                           plane_3d coord, long time, bool test) {
     // file to store the simulation results in csv format
@@ -597,98 +639,97 @@ class solver {
     }
   }
 
-  void test_load_balance()
-  {
+  void test_load_balance() {
     double busy_rates[nl];  // idle rate values returned by performance counters
-    double expected_busy_rate = 0.0;  // hypotheticallly expected idle rate for equal distribution of work among all nodes
-    double max_diff = 0.0;  // variable to store the maximum difference between expected and actual idle rate
+    double expected_busy_rate =
+        0.0;  // hypotheticallly expected idle rate for equal distribution of
+              // work among all nodes
+    double max_diff = 0.0;  // variable to store the maximum difference between
+                            // expected and actual idle rate
     std::cout << "Testing load balance:" << std::endl;
 
     // retrieve the performance counter values for idle-rates
-    for(int idx = 0; idx < nl; ++idx)
-    {
+    for (int idx = 0; idx < nl; ++idx) {
       hpx::performance_counters::counter_value value1 =
           perf_counters[idx].get_counter_value(hpx::launch::sync, true);
-      busy_rates[idx] = 10000-value1.get_value<double>();
+      busy_rates[idx] = 10000 - value1.get_value<double>();
       std::cout << "Test: counter value: " << busy_rates[idx] << std::endl;
-      
+
       expected_busy_rate += busy_rates[idx];
     }
     expected_busy_rate /= nl;
     std::cout << "Expected busy rate " << expected_busy_rate << std::endl;
 
-    for(int idx = 0; idx < nl; ++idx)
-    {
-      max_diff = std::max(std::abs(expected_busy_rate - busy_rates[idx]), max_diff);
+    for (int idx = 0; idx < nl; ++idx) {
+      max_diff =
+          std::max(std::abs(expected_busy_rate - busy_rates[idx]), max_diff);
     }
 
     std::cout << "Visualizing Load Balance across nodes" << std::endl;
 
-    for(long idx = 0; idx < npx; ++idx)
-    {
-      for(long idy = 0; idy < npy; ++idy)
-      {  
+    for (long idx = 0; idx < npx; ++idx) {
+      for (long idy = 0; idy < npy; ++idy) {
         std::cout << partition_domain[get_loc(idx, idy, npx)] << " ";
       }
       std::cout << std::endl;
     }
 
-    if(max_diff > 1500)
+    if (max_diff > 1500)
       std::cout << "Load not balanced correctly" << std::endl;
     else
       std::cout << "Load balanced correctly" << std::endl;
   }
 
   // bfs for extending the domain uniformly in all possible directions
-  void locality_subdomain_bfs(int node_id, int node_subdomain, std::vector<std::vector<int> > &locality_ids, int visited_subdomain[],
-                              int visited_node[], int work_realloc[], int total_subdomains[])
-  {
-    long ctr_1 = 0, ctr_2 = 1;
+  void locality_subdomain_bfs(int node_id, int node_subdomain,
+                              std::vector<std::vector<int> >& locality_ids,
+                              int visited_subdomain[], int visited_node[],
+                              int work_realloc[], int total_subdomains[]) {
+    long ctr_2 = 1;
     long time = 0;
 
-    // prioirity queue instead of normal queue so that we can reach boundary points faster and 
-    // expand all the boundaries evenly
+    // prioirity queue instead of normal queue so that we can reach boundary
+    // points faster and expand all the boundaries evenly
     std::priority_queue<std::pair<bool, std::pair<long, long> > > bfs_q;
     std::pair<bool, std::pair<long, long> > q_element;
     bfs_q.push({1, {0, node_subdomain}});
-    // variable to indicate whether we are currently expanding or contracting the horizon
-    bool invard_bfs = 0;time++;
+    // variable to indicate whether we are currently expanding or contracting
+    // the horizon
+    bool invard_bfs = 0;
+    time++;
 
-    while(!bfs_q.empty() && work_realloc[node_id] != 0)
-    {
-      ctr_1 = 0;
-      for(long id = 0; id < ctr_2; ++id)
-      {
-        q_element = bfs_q.top();bfs_q.pop();
+    while (!bfs_q.empty() && work_realloc[node_id] != 0) {
+      long ctr_1 = 0;
+      for (long id = 0; id < ctr_2; ++id) {
+        q_element = bfs_q.top();
+        bfs_q.pop();
         long gx = q_element.ss.ss % npx, gy = q_element.ss.ss / npx;
         // we have reached the boundary and want to expand inward
-        if(q_element.ff == 0 && work_realloc[node_id] < 0) invard_bfs=1;
-        visited_subdomain[q_element.ss.ss] = 1+invard_bfs;
-        
-        for(long idx = std::max((long)0, gx-1); idx < std::min(npx, gx+2); ++idx)
-        {
-          for(long idy = std::max((long)0, gy-1); idy < std::min(npy, gy+2); ++idy)
-          {
-            if(std::abs(idx-gx) + std::abs(idy-gy) > 1 || visited_subdomain[get_loc(idx, idy, npx)] == 1+invard_bfs
-              || visited_node[locality_ids[idx][idy]] == 2) continue;
-            
+        if (q_element.ff == 0 && work_realloc[node_id] < 0) invard_bfs = 1;
+        visited_subdomain[q_element.ss.ss] = 1 + invard_bfs;
+
+        for (long idx = std::max((long)0, gx - 1); idx < std::min(npx, gx + 2);
+             ++idx) {
+          for (long idy = std::max((long)0, gy - 1);
+               idy < std::min(npy, gy + 2); ++idy) {
+            if (std::abs(idx - gx) + std::abs(idy - gy) > 1 ||
+                visited_subdomain[get_loc(idx, idy, npx)] == 1 + invard_bfs ||
+                visited_node[locality_ids[idx][idy]] == 2)
+              continue;
+
             bool same_locality = (locality_ids[idx][idy] == node_id);
 
-            if(work_realloc[node_id] > 0)
-            {
+            if (work_realloc[node_id] > 0) {
               bfs_q.push({same_locality, {time, get_loc(idx, idy, npx)}});
               ctr_1++;
-            }
-            else if(work_realloc[node_id] < 0 && invard_bfs == 0)
-            {
+            } else if (work_realloc[node_id] < 0 && invard_bfs == 0) {
               bfs_q.push({same_locality, {time, get_loc(idx, idy, npx)}});
               ctr_1++;
-            }
-            else if(work_realloc[node_id] < 0 && invard_bfs == 1 && same_locality && total_subdomains[node_id] > 1)
-            {
+            } else if (work_realloc[node_id] < 0 && invard_bfs == 1 &&
+                       same_locality && total_subdomains[node_id] > 1) {
               bfs_q.push({0, {time, get_loc(idx, idy, npx)}});
               ctr_1++;
-              
+
               work_realloc[locality_ids[gx][gy]]--;
               work_realloc[node_id]++;
 
@@ -703,8 +744,9 @@ class solver {
         // we have reached the boundary and want to expand outward
         // at the same time, we want to expand only to those subdomains
         // whose localities have not been visited yet
-        if(visited_node[locality_ids[gx][gy]] != 2 && locality_ids[gx][gy] != node_id && work_realloc[node_id] > 0 && total_subdomains[locality_ids[gx][gy]] > 1)
-        {
+        if (visited_node[locality_ids[gx][gy]] != 2 &&
+            locality_ids[gx][gy] != node_id && work_realloc[node_id] > 0 &&
+            total_subdomains[locality_ids[gx][gy]] > 1) {
           work_realloc[locality_ids[gx][gy]]++;
           work_realloc[node_id]--;
 
@@ -720,81 +762,93 @@ class solver {
     }
   }
 
-  void redistribution_dfs(int parent_id, int node_id, std::vector<std::vector<int> > &locality_ids, std::set<int> adj_set[], 
-                          int visited_subdomain[], int visited_node[], int work_realloc[], int node_subdomain[], int total_subdomains[])
-  {
+  void redistribution_dfs(int parent_id, int node_id,
+                          std::vector<std::vector<int> >& locality_ids,
+                          std::set<int> adj_set[], int visited_subdomain[],
+                          int visited_node[], int work_realloc[],
+                          int node_subdomain[], int total_subdomains[]) {
     visited_node[node_id] = 1;
-    for(auto itr = adj_set[node_id].begin(); itr != adj_set[node_id].end(); ++itr)
-    {
-      if(visited_node[*itr] == 0)
-      {
-        redistribution_dfs(node_id, *itr, locality_ids, adj_set, visited_subdomain, visited_node, work_realloc, node_subdomain, total_subdomains);
+    for (auto itr = adj_set[node_id].begin(); itr != adj_set[node_id].end();
+         ++itr) {
+      if (visited_node[*itr] == 0) {
+        redistribution_dfs(node_id, *itr, locality_ids, adj_set,
+                           visited_subdomain, visited_node, work_realloc,
+                           node_subdomain, total_subdomains);
       }
     }
 
     // The first partition doesn't have any partition left to exchange with it
-    if(parent_id == -1) return;
+    if (parent_id == -1) return;
     // perform subdomain exchanges as required with other partitions
-    locality_subdomain_bfs(node_id, node_subdomain[node_id], locality_ids, visited_subdomain, visited_node, work_realloc, total_subdomains);
+    locality_subdomain_bfs(node_id, node_subdomain[node_id], locality_ids,
+                           visited_subdomain, visited_node, work_realloc,
+                           total_subdomains);
 
     visited_node[node_id] = 2;
   }
 
   /**
- * Function to run the load balancing algorithm every nbalance time steps.
- * Function reassigns localities to various square subdomains(if any) to
- * have balanced computation across all the nodes in the distributed setup.
- * @param unbalanced_data std::vector of client-side data structures for storing temperature data
- * @return std::vector of client-side data structures with some square subdomains possibly reassigned to different nodes
- */
-  std::vector<partition_space_client> load_balance(std::vector<partition_space_client> unbalanced_data)
-  {
-    //hpx::naming::get_locality_id_from_id
+   * Function to run the load balancing algorithm every nbalance time steps.
+   * Function reassigns localities to various square subdomains(if any) to
+   * have balanced computation across all the nodes in the distributed setup.
+   * @param unbalanced_data std::vector of client-side data structures for
+   * storing temperature data
+   * @return std::vector of client-side data structures with some square
+   * subdomains possibly reassigned to different nodes
+   */
+  std::vector<partition_space_client> load_balance(
+      std::vector<partition_space_client> unbalanced_data) {
+    // hpx::naming::get_locality_id_from_id
     double busy_rates[nl];  // idle rate values returned by performance counters
-    int work_realloc[nl];   // amount of subdomains a particular node is capable of computing more
-    int total_subdomains[nl]; // total number of subdomains present on the node
-    double expected_busy_rate = 0.0;  // hypotheticallly expected idle rate for equal distribution of work among all nodes
+    int work_realloc[nl];   // amount of subdomains a particular node is capable
+                            // of computing more
+    int total_subdomains[nl];  // total number of subdomains present on the node
+    double expected_busy_rate =
+        0.0;  // hypotheticallly expected idle rate for equal distribution of
+              // work among all nodes
 
     // retrieve the performance counter values for idle-rates
-    for(int idx = 0; idx < nl; ++idx)
-    {
+    for (int idx = 0; idx < nl; ++idx) {
       hpx::performance_counters::counter_value value1 =
           perf_counters[idx].get_counter_value(hpx::launch::sync, true);
-      busy_rates[idx] = 10000-value1.get_value<double>();
-      
+      busy_rates[idx] = 10000 - value1.get_value<double>();
+
       expected_busy_rate += busy_rates[idx];
       total_subdomains[idx] = 0;
     }
     expected_busy_rate /= nl;
 
-    std::set<int> adj_set[nl];      // adjacency list of the domain partitions graph as a set to prevent repetitions
-    int visited_node[nl];   // true if a particular node has already been visited during DFS
-    int node_subdomain[nl]; // contains subdomain id for each of the nodes to start the BFS on each node
-    int visited_subdomain[npx*npy];   // true if a particular subdomain has already been visited during load balancing
-    std::vector<std::vector<int> > locality_ids; // locality id to which a particular element is attached
+    std::set<int> adj_set[nl];  // adjacency list of the domain partitions graph
+                                // as a set to prevent repetitions
+    int visited_node[nl];  // true if a particular node has already been visited
+                           // during DFS
+    int node_subdomain[nl];  // contains subdomain id for each of the nodes to
+                             // start the BFS on each node
+    int visited_subdomain[npx *
+                          npy];  // true if a particular subdomain has already
+                                 // been visited during load balancing
+    std::vector<std::vector<int> >
+        locality_ids;  // locality id to which a particular element is attached
     locality_ids.resize(npx);
-    for(long idx = 0; idx < npx; ++idx) locality_ids[idx].resize(npy);
+    for (long idx = 0; idx < npx; ++idx) locality_ids[idx].resize(npy);
 
-    for(long gx = 0; gx < npx; ++gx)
-    {
-      for(long gy = 0; gy < npy; ++gy)
-      {
+    for (long gx = 0; gx < npx; ++gx) {
+      for (long gy = 0; gy < npy; ++gy) {
         std::size_t locality_id = locidx(get_loc(gx, gy, npx), nl);
         bool is_boundary = 0;
-        for(long idx = std::max((long)0, gx-1); idx < std::min(npx, gx+2); ++idx)
-        {
-          for(long idy = std::max((long)0, gy-1); idy < std::min(npy, gy+2); ++idy)
-          {
-            if(std::abs(idx-gx) + std::abs(idy-gy) > 1) continue;
-            if(locidx(get_loc(idx, idy, npx), nl) != locality_id)
-            {
+        for (long idx = std::max((long)0, gx - 1); idx < std::min(npx, gx + 2);
+             ++idx) {
+          for (long idy = std::max((long)0, gy - 1);
+               idy < std::min(npy, gy + 2); ++idy) {
+            if (std::abs(idx - gx) + std::abs(idy - gy) > 1) continue;
+            if (locidx(get_loc(idx, idy, npx), nl) != locality_id) {
               adj_set[locality_id].insert(locidx(get_loc(idx, idy, npx), nl));
             }
           }
         }
 
         node_subdomain[locality_id] = get_loc(gx, gy, npx);
-        total_subdomains[locality_id] ++;
+        total_subdomains[locality_id]++;
         visited_subdomain[get_loc(gx, gy, npx)] = 0;
         locality_ids[gx][gy] = locality_id;
       }
@@ -804,18 +858,22 @@ class solver {
     int node_min_imbalance = 0;
 
     // calculate the excess and the deficiency of compute across all the nodes
-    for(int idx = 0; idx < nl; ++idx)
-    {
-      double time_per_subdomain = busy_rates[idx] / (double)total_subdomains[idx];
-      if(expected_busy_rate > busy_rates[idx] && abs(expected_busy_rate-busy_rates[idx]) > 0.3*time_per_subdomain)  
-        work_realloc[idx] = ceil((expected_busy_rate-busy_rates[idx]) / time_per_subdomain);
-      else if(expected_busy_rate < busy_rates[idx] && abs(expected_busy_rate-busy_rates[idx]) > 0.3*time_per_subdomain)
-        work_realloc[idx] = floor((expected_busy_rate-busy_rates[idx]) / time_per_subdomain);
+    for (int idx = 0; idx < nl; ++idx) {
+      double time_per_subdomain =
+          busy_rates[idx] / (double)total_subdomains[idx];
+      if (expected_busy_rate > busy_rates[idx] &&
+          abs(expected_busy_rate - busy_rates[idx]) > 0.3 * time_per_subdomain)
+        work_realloc[idx] =
+            ceil((expected_busy_rate - busy_rates[idx]) / time_per_subdomain);
+      else if (expected_busy_rate < busy_rates[idx] &&
+               abs(expected_busy_rate - busy_rates[idx]) >
+                   0.3 * time_per_subdomain)
+        work_realloc[idx] =
+            floor((expected_busy_rate - busy_rates[idx]) / time_per_subdomain);
       else
         work_realloc[idx] = 0;
-      
-      if(abs(work_realloc[idx]) < min_load_imbalance)
-      {
+
+      if (abs(work_realloc[idx]) < min_load_imbalance) {
         min_load_imbalance = abs(work_realloc[idx]);
         node_min_imbalance = idx;
       }
@@ -824,48 +882,58 @@ class solver {
     }
 
     // positive work_realloc means requires more work for optimal distribution
-    // perform the redistribution of domains and ressign the locality ids to balance the load
-    // set the root node as the "compute node" with minimum load imbalance
-    redistribution_dfs(-1, node_min_imbalance, locality_ids, adj_set, visited_subdomain, visited_node, work_realloc, node_subdomain, total_subdomains);
+    // perform the redistribution of domains and ressign the locality ids to
+    // balance the load set the root node as the "compute node" with minimum
+    // load imbalance
+    redistribution_dfs(-1, node_min_imbalance, locality_ids, adj_set,
+                       visited_subdomain, visited_node, work_realloc,
+                       node_subdomain, total_subdomains);
 
-    // perform the reassignment of localities for each of the subdomains and return them
-    for(long idx = 0; idx < npx; ++idx)
-      for(long idy = 0; idy < npy; ++idy)
-        unbalanced_data[get_loc(idx, idy, npx)] = partition_space_client(this->localities[locality_ids[idx][idy]], 
-              hpx::util::unwrap(unbalanced_data[get_loc(idx, idy, npx)].get_data()));
-    
-    if(partition_domain.size() == 0) partition_domain.resize(npx * npy);
+    // perform the reassignment of localities for each of the subdomains and
+    // return them
+    for (long idx = 0; idx < npx; ++idx)
+      for (long idy = 0; idy < npy; ++idy)
+        unbalanced_data[get_loc(idx, idy, npx)] = partition_space_client(
+            this->localities[locality_ids[idx][idy]],
+            hpx::util::unwrap(
+                unbalanced_data[get_loc(idx, idy, npx)].get_data()));
 
-    for(long idx = 0; idx < npx; ++idx)
-      for(long idy = 0; idy < npy; ++idy)
+    if (partition_domain.size() == 0) partition_domain.resize(npx * npy);
+
+    for (long idx = 0; idx < npx; ++idx)
+      for (long idy = 0; idy < npy; ++idy)
         partition_domain[get_loc(idx, idy, npx)] = locality_ids[idx][idy];
-    
-    // reset all counters for more accurate time and remove the data transfer times from the idle-rate
-    for(int idx = 0; idx < nl; ++idx)
+
+    // reset all counters for more accurate time and remove the data transfer
+    // times from the idle-rate
+    for (int idx = 0; idx < nl; ++idx)
       hpx::performance_counters::counter_value value1 =
           perf_counters[idx].get_counter_value(hpx::launch::sync, true);
-    
+
     return unbalanced_data;
   }
 
-/**
- * our influence function to weigh various points differently
- * @param distance distance of the point from point of computation
- * @return returns the influence of the current point for point under computation
- */
+  /**
+   * our influence function to weigh various points differently
+   * @param distance distance of the point from point of computation
+   * @return returns the influence of the current point for point under
+   * computation
+   */
   static inline double influence_function(double distance) { return 1.0; }
 
   /**
- * function for inserting the rectangles which are just above, below and on the sides of
- * the given partition into the unordered_map used to index the squares
- * already inserted into the vector
- * @param lx rectangle's lower left point's x coordinate
- * @param ly rectangle's lower left point's y coordinate
- * @param rx rectangle's upper right point's x coordinate
- * @param ry rectangle's upper right point's y coordinate
- * @param all_squares std::vector containing npx * npy squares from the partitioned grid
- * @param neighbour_squares std::vector containing the neighbour square subdomains from the current square
- */
+   * function for inserting the rectangles which are just above, below and on
+   * the sides of the given partition into the unordered_map used to index the
+   * squares already inserted into the vector
+   * @param lx rectangle's lower left point's x coordinate
+   * @param ly rectangle's lower left point's y coordinate
+   * @param rx rectangle's upper right point's x coordinate
+   * @param ry rectangle's upper right point's y coordinate
+   * @param all_squares std::vector containing npx * npy squares from the
+   * partitioned grid
+   * @param neighbour_squares std::vector containing the neighbour square
+   * subdomains from the current square
+   */
   static void add_neighbour_rectangle(long lx, long ly, long rx, long ry,
                                       space_2d& all_squares,
                                       space_2d& neighbour_squares) {
@@ -879,24 +947,26 @@ class solver {
   }
 
   /**
- * testing operator to verify correctness
- * @param pos_x x coordinate of the point of computation
- * @param pos_y y coordinate of the point of computation
- * @param time time at which we want the analytical solution
- * @return analytical solution's expected value at point (pos_x, pos_y)
- */
+   * testing operator to verify correctness
+   * @param pos_x x coordinate of the point of computation
+   * @param pos_y y coordinate of the point of computation
+   * @param time time at which we want the analytical solution
+   * @return analytical solution's expected value at point (pos_x, pos_y)
+   */
   static inline double w(long pos_x, long pos_y, long time) {
     return cos(2 * M_PI * (time * dt)) * sin(2 * M_PI * (pos_x * dh)) *
            sin(2 * M_PI * (pos_y * dh));
   }
 
   /**
- * condition to enforce the boundary conditions for the divided partitions
- * @param pos_x x coordinate of the point of computation
- * @param pos_y y coordinate of the point of computation
- * @param all_squares std::vector containing npx * npy squares from the partitioned grid
- * @return 0 for points outside the mesh, else the value computed by the numerical solution for point (pos_x, pos_y)
- */
+   * condition to enforce the boundary conditions for the divided partitions
+   * @param pos_x x coordinate of the point of computation
+   * @param pos_y y coordinate of the point of computation
+   * @param all_squares std::vector containing npx * npy squares from the
+   * partitioned grid
+   * @return 0 for points outside the mesh, else the value computed by the
+   * numerical solution for point (pos_x, pos_y)
+   */
   static inline double boundary(
       long pos_x, long pos_y, const std::vector<partition_space>& all_squares) {
     if (pos_x >= 0 && pos_x < nx * npx && pos_y >= 0 && pos_y < ny * npy)
@@ -906,12 +976,15 @@ class solver {
   }
 
   /**
- * condition to enforce the boundary conditions for the tests of analytical solution
- * @param pos_x x coordinate of the point of computation
- * @param pos_y y coordinate of the point of computation
- * @param val expected value for analytical solution at the point (pos_x, pos_y)
- * @return 0 for points outside the mesh, else the value computed by the analytical solution for point (pos_x, pos_y)
- */
+   * condition to enforce the boundary conditions for the tests of analytical
+   * solution
+   * @param pos_x x coordinate of the point of computation
+   * @param pos_y y coordinate of the point of computation
+   * @param val expected value for analytical solution at the point (pos_x,
+   * pos_y)
+   * @return 0 for points outside the mesh, else the value computed by the
+   * analytical solution for point (pos_x, pos_y)
+   */
   static inline double boundary(long pos_x, long pos_y, double val) {
     if (pos_x >= 0 && pos_x < nx * npx && pos_y >= 0 && pos_y < ny * npy)
       return val;
@@ -920,13 +993,15 @@ class solver {
   }
 
   /**
- * Function to find distance in 2d plane given 2 points coordinates
- * @param cen_x x coordinate of the point of computation
- * @param cen_y y coordinate of the point of computation
- * @param pos_x x coordinate of the point that influences the temperature at (cen_x, cen_y)
- * @param pos_y y coordinate of the point that influences the temperature at (cen_x, cen_y)
- * @return distance of point (cen_x, cen_y) from point (pos_x, pos_y)
- */
+   * Function to find distance in 2d plane given 2 points coordinates
+   * @param cen_x x coordinate of the point of computation
+   * @param cen_y y coordinate of the point of computation
+   * @param pos_x x coordinate of the point that influences the temperature at
+   * (cen_x, cen_y)
+   * @param pos_y y coordinate of the point that influences the temperature at
+   * (cen_x, cen_y)
+   * @return distance of point (cen_x, cen_y) from point (pos_x, pos_y)
+   */
   static inline double distance(long cen_x, long cen_y, long pos_x,
                                 long pos_y) {
     return sqrt(((cen_x - pos_x) * (cen_x - pos_x)) +
@@ -940,13 +1015,15 @@ class solver {
   }
 
   /**
- * function adds the external source to the 2d nonlocal heat equation for testing correctness
- * of numerical solution against the analytical solution
- * @param pos_x x coordinate of the point whose numerical solution is to be computed
- * @param pos_y y coordinate of the point whose numerical solution is to be computed
- * @param time time at which we want the numerical solution
- * @return temperature value at point (pos_x, pos_y) for analytical solution
- */
+   * function adds the external source to the 2d nonlocal heat equation for
+   * testing correctness of numerical solution against the analytical solution
+   * @param pos_x x coordinate of the point whose numerical solution is to be
+   * computed
+   * @param pos_y y coordinate of the point whose numerical solution is to be
+   * computed
+   * @param time time at which we want the numerical solution
+   * @return temperature value at point (pos_x, pos_y) for analytical solution
+   */
   static double sum_local_test(long pos_x, long pos_y, long time) {
     double result_local =
         -(2 * M_PI * sin(2 * M_PI * (time * dt)) *
@@ -966,13 +1043,16 @@ class solver {
   }
 
   /**
- * Our operator to find sum of 'eps' radius circle in vicinity of point P(x,y)
- * Represent circle as a series of horizaontal lines of thickness 'dh'
- * @param pos_x x coordinate of the point whose numerical solution is to be computed
- * @param pos_y y coordinate of the point whose numerical solution is to be computed
- * @param all_squares std::vector containing npx * npy squares from the partitioned grid
- * @return temperature value at point (pos_x, pos_y) for numerical solution
- */
+   * Our operator to find sum of 'eps' radius circle in vicinity of point P(x,y)
+   * Represent circle as a series of horizaontal lines of thickness 'dh'
+   * @param pos_x x coordinate of the point whose numerical solution is to be
+   * computed
+   * @param pos_y y coordinate of the point whose numerical solution is to be
+   * computed
+   * @param all_squares std::vector containing npx * npy squares from the
+   * partitioned grid
+   * @return temperature value at point (pos_x, pos_y) for numerical solution
+   */
   static double sum_local(long pos_x, long pos_y,
                           const std::vector<partition_space>& all_squares) {
     double result_local = 0.0;
@@ -990,7 +1070,7 @@ class solver {
     return result_local;
   }
 
-  //! Function to retrieve the data from possibly remote partitions for 
+  //! Function to retrieve the data from possibly remote partitions for
   //! vector of square sundomains
   static space_2d_fut vector_get_data(
       const std::vector<partition_space_client>& neighbour_squares) {
@@ -1005,14 +1085,18 @@ class solver {
   }
 
   /**
- * partition of nx * ny cells which will be processed by a single thread to enable 
- * full utilization of all cores across all nodes in the cluster
- * @param middle x coordinate of the point whose numerical solution is to be computed
- * @param neighbour_squares std::vector containing the neighbour square subdomains from the current square
- * @param time time for which we are logging the results
- * @param test variable is true if we have to test the numerical solution against the analytical solution
- * @return client side data structure for temperature values for a square subdomain
- */
+   * partition of nx * ny cells which will be processed by a single thread to
+   * enable full utilization of all cores across all nodes in the cluster
+   * @param middle x coordinate of the point whose numerical solution is to be
+   * computed
+   * @param neighbour_squares std::vector containing the neighbour square
+   * subdomains from the current square
+   * @param time time for which we are logging the results
+   * @param test variable is true if we have to test the numerical solution
+   * against the analytical solution
+   * @return client side data structure for temperature values for a square
+   * subdomain
+   */
   static partition_space_client sum_local_partition(
       partition_space_client const& middle,
       const std::vector<partition_space_client>& neighbour_squares, long time,
@@ -1136,8 +1220,8 @@ class solver {
 
 HPX_PLAIN_ACTION(solver::sum_local_partition, sum_local_partition_action);
 
-//! Compute the numerical solution on 'nx * ny' data points for each of 'npx * npy' partitions
-//! for 'nt' time steps
+//! Compute the numerical solution on 'nx * ny' data points for each of 'npx *
+//! npy' partitions for 'nt' time steps
 void solver::do_work() {
   // Actual time step loop
   for (long t = 0; t < nt; ++t) {
@@ -1171,10 +1255,9 @@ void solver::do_work() {
     }
 
     // launch a seperate thread for running the load balancing algorithm
-    // and assign back the changed array of localities(if any) by the 
+    // and assign back the changed array of localities(if any) by the
     // load balancing algorithm
-    if (t % nbalance == 0 && t != 0 && nl > 1)
-    {
+    if (t % nbalance == 0 && t != 0 && nl > 1) {
       for (int idx = 0; idx < npx * npy; ++idx) S[next][idx].get_data().wait();
       S[next] = load_balance(S[next]);
     }
@@ -1232,14 +1315,14 @@ int batch_tester(long nlog, long nbalance) {
 //! main function in the HPX runtime
 int hpx_main(hpx::program_options::variables_map& vm) {
   setup_counters();
-  
+
   std::uint64_t nt = vm["nt"].as<std::uint64_t>();  // Number of steps.
   std::uint64_t nlog =
       vm["nlog"]
           .as<std::uint64_t>();  // Number of time steps to log the results
   std::uint64_t nbalance =
-      vm["nbalance"]
-          .as<std::uint64_t>();  // Number of time steps to run the load balancing algorithm
+      vm["nbalance"].as<std::uint64_t>();  // Number of time steps to run the
+                                           // load balancing algorithm
   std::string filename =
       vm["file"].as<std::string>();   // Filename to take input from
   bool test = vm["test"].as<bool>();  // Boolean variable to indicate if
@@ -1284,10 +1367,8 @@ int hpx_main(hpx::program_options::variables_map& vm) {
 
 //! main function to create and initialize an HPX runtime
 int main(int argc, char* argv[]) {
-  std::cout << argv[0] << " ("
-    << MAJOR_VERSION << "."
-    << MINOR_VERSION << "."
-    << UPDATE_VERSION << ")" << std::endl;
+  std::cout << argv[0] << " (" << MAJOR_VERSION << "." << MINOR_VERSION << "."
+            << UPDATE_VERSION << ")" << std::endl;
   namespace po = hpx::program_options;
 
   po::options_description desc_commandline;
@@ -1296,11 +1377,11 @@ int main(int argc, char* argv[]) {
       "use arguments from numerical solution for testing (default: false)")(
       "test_batch",
       "test the solution against numerical solution against batch inputs "
-      "(default: false)")
-      ("test_load_balance",
-      "test the load balancing algorithm for approximately equal load balancing "
-      "(default: false)")("results",
-                          "print generated results (default: false)")(
+      "(default: false)")("test_load_balance",
+                          "test the load balancing algorithm for approximately "
+                          "equal load balancing "
+                          "(default: false)")(
+      "results", "print generated results (default: false)")(
       "cmp", po::value<bool>()->default_value(false),
       "Print expected versus actual outputs")(
       "file", po::value<std::string>()->default_value("None"),
