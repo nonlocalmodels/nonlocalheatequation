@@ -8,3 +8,5 @@ description:
   - description/*
 build:
   - CMakeLists.txt
+circle-ci:
+  - .circleci/*
