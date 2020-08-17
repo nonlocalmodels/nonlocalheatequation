@@ -99,7 +99,7 @@ jobs:
             name: Configure
             command: |
               mkdir -p build
-              cd buil
+              cd build
               cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-fprofile-arcs -ftest-coverage" ..
               make 
         - run:
