@@ -87,7 +87,7 @@ jobs:
                 git config --global user.name "Circle CI"
                 git config --global user.email "bot@circleci.com"
                 git add ./documentation/*
-                git commit -m "Update documentation" ./documentation/*
+                git commit -m "Update documentation [ci skip] " ./documentation/*
                 git push https://${TOKEN}@github.com/nonlocalmodels/nonlocalheatequation.git
               fi
     codecoverage:
@@ -109,7 +109,9 @@ jobs:
         - run:
             name: Publish code coverage
             command: |
-              coveralls --exclude build --gcov-options '\-lp' -t ${CTOKEN}
+              if [ "${CIRCLE_BRANCH}" == "master" ]; then
+                coveralls --exclude build --gcov-options '\-lp' -t ${CTOKEN}
+              fi
 workflows:
   version: 2
   build_and_deploy:
