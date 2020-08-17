@@ -132,4 +132,9 @@ workflows:
               ignore: gh-pages
           requires:
             - build
-      - codecoverage
+      - codecoverage:
+            filters:
+              branches:
+                ignore: gp-pages
+            requires:
+              - build
