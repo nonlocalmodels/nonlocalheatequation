@@ -94,7 +94,7 @@ jobs:
       docker: 
         - image: diehlpk/nonlocalmodels:baseimage
       steps:
-        - ckeckout:
+        - ckeckout
         - run:
             name: Configure
             command: |
