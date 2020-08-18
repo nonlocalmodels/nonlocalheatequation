@@ -100,12 +100,13 @@ jobs:
             command: |
               mkdir -p build
               cd build
-              cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-fprofile-arcs -ftest-coverage" ..
+              cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-g -O0 -fprofile-arcs -ftest-coverage" ..
               make 
         - run:
             name: Run tests
             command: |
-              make tests
+              cd build
+              make test
         - run:
             name: Publish code coverage
             command: |
