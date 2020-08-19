@@ -100,7 +100,7 @@ jobs:
             command: |
               mkdir -p build
               cd build
-              cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-g -O0 -fprofile-arcs -ftest-coverage" ..
+              cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-g -O0 -fprofile-arcs -ftest-coverage -fpic" ..
               make 
         - run:
             name: Run tests
@@ -108,10 +108,14 @@ jobs:
               cd build
               make test
         - run:
+            name: Report
+            command: |
+              gcovr -r .
+        - run:
             name: Publish code coverage
             command: |
               if [ "${CIRCLE_BRANCH}" == "master" ]; then
-                coveralls --exclude build --gcov-options '\-lp' -t ${CTOKEN}
+                coveralls --gcov-options '\-lp' -t ${CTOKEN}
               fi
 workflows:
   version: 2
