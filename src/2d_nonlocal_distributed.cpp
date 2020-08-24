@@ -639,6 +639,10 @@ class solver {
     }
   }
 
+  /**
+   * function for checking the load balancing and visualizing the same
+   * using hpx::performance counters
+   */
   void test_load_balance() {
     double busy_rates[nl];  // idle rate values returned by performance counters
     double expected_busy_rate =
@@ -680,7 +684,24 @@ class solver {
       std::cout << "Load balanced correctly" << std::endl;
   }
 
-  // bfs for extending the domain uniformly in all possible directions
+  /**
+   * function for bfs for extending the domain corresponding to each of the
+   * nodes uniformly in all possible directions so that the change of shape in
+   * the region corresponding to a node does not change much
+   * @param node_id node id of the region whose boundary is being extended or
+   * contracted
+   * @param node_subdomain a square subdomain's id in the region belonging to
+   * the current node
+   * @param locality_ids locality id to which a particular square subdomain is
+   * attached
+   * @param visited_subdomain data structure to keep a track of sudomains
+   * corresponding to current node
+   * @param visited_node data structure to keep a track of visited nodes
+   * @param work_realloc number of subdomains that need to be exchanged by
+   * various nodes
+   * @param total_subdomains counter for each nodes denoting number of square
+   * subdomains for each of the nodes
+   */
   void locality_subdomain_bfs(int node_id, int node_subdomain,
                               std::vector<std::vector<int> >& locality_ids,
                               int visited_subdomain[], int visited_node[],
@@ -762,6 +783,26 @@ class solver {
     }
   }
 
+  /**
+   * function for inserting the rectangles which are just above, below and on
+   * the sides of the given partition into the unordered_map used to index the
+   * squares already inserted into the vector
+   * @param parent_id node id of the parent in the DFS
+   * @param node_id node id of the region whose boundary is being extended or
+   * contracted
+   * @param locality_ids locality id to which a particular square subdomain is
+   * attached
+   * @param adj_set adjacency list for each of the nodes
+   * @param visited_subdomain data structure to keep a track of sudomains
+   * corresponding to current node
+   * @param visited_node data structure to keep a track of visited nodes
+   * @param work_realloc number of subdomains that need to be exchanged by
+   * various nodes
+   * @param node_subdomain std::vector containing a square subdomain's id in the
+   * region belonging to the various nodes
+   * @param total_subdomains counter for each nodes denoting number of square
+   * subdomains for each of the nodes
+   */
   void redistribution_dfs(int parent_id, int node_id,
                           std::vector<std::vector<int> >& locality_ids,
                           std::set<int> adj_set[], int visited_subdomain[],
