@@ -35,9 +35,7 @@ Recently various nonlocal models have been applied for understanding of complex 
 Following versions have been used and verified to be supported by the code:
 
 *   [CMake](https://cmake.org/) version : `3.10` or beyond
-
 *   [VTK](https://vtk.org/) version : `8.2.0`
-
 *   [GMSH](http://gmsh.info/) version : `4.7.0`
 *   [METIS](http://glaros.dtc.umn.edu/gkhome/metis/metis/overview) version : `5.1.0`
 *   [HPX](https://github.com/STEllAR-GROUP/hpx) version : `1.4.1`
