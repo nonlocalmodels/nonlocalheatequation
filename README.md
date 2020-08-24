@@ -1,6 +1,6 @@
 # Nonlocal Heat Equation [![CircleCI](https://circleci.com/gh/nonlocalmodels/nonlocalheatequation.svg?style=shield)](https://circleci.com/gh/nonlocalmodels/nonlocalheatequation) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/6fcd87ddfb4146f7b236c2ac2dc0bd42)](https://app.codacy.com/gh/nonlocalmodels/nonlocalheatequation?utm_source=github.com&utm_medium=referral&utm_content=nonlocalmodels/nonlocalheatequation&utm_campaign=Badge_Grade_Dashboard) [![Coverage Status](https://coveralls.io/repos/github/nonlocalmodels/nonlocalheatequation/badge.svg?branch=master)](https://coveralls.io/github/nonlocalmodels/nonlocalheatequation?branch=master)
 
-<img src="https://stellar-group.github.io/hpx/docs/sphinx/latest/html/_static/HPX_STELLAR.png" align="right" width="220" style="background-color:black"/>
+<img src="https://avatars0.githubusercontent.com/u/1780988?s=280&v=4" align="right" width="130" />
 <img src="https://summerofcode.withgoogle.com/static/img/og-image.png" align="right" width="130" />
 
 **Documentation** : [master](https://nonlocalmodels.github.io/nonlocalheatequation/documentation/)
