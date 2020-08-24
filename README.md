@@ -34,16 +34,10 @@ Recently various nonlocal models have been applied for understanding of complex 
 ## Dependencies and version
 Following versions have been used and verified to be supported by the code:
 
-<<<<<<< HEAD
 *   [CMake](https://cmake.org/) version : `3.10` or beyond
 
 *   [VTK](https://vtk.org/) version : `8.2.0`
 
-=======
-*   [Slurm](https://slurm.schedmd.com/)
-*   [CMake](https://cmake.org/) version : `3.10` or beyond
-*   [VTK](https://vtk.org/)
->>>>>>> 4bf343f6e9b4603f93c9de5c79ed371681d56df5
 *   [GMSH](http://gmsh.info/) version : `4.7.0`
 *   [METIS](http://glaros.dtc.umn.edu/gkhome/metis/metis/overview) version : `5.1.0`
 *   [HPX](https://github.com/STEllAR-GROUP/hpx) version : `1.4.1`
