@@ -87,10 +87,36 @@ jobs:
                 git config --global user.name "Circle CI"
                 git config --global user.email "bot@circleci.com"
                 git add ./documentation/*
-                git commit -m "Update documentation" ./documentation/*
-                git push https://${TOKEN}@github.com/nonlocalmodels/nonlocalheatequation.git
+                git commit -m "Update documentation [ci skip] " ./documentation/* || true
+                git push https://${TOKEN}@github.com/nonlocalmodels/nonlocalheatequation.git || true
               fi
-
+    codecoverage:
+      docker: 
+        - image: diehlpk/nonlocalmodels:baseimage
+      steps:
+        - checkout
+        - run:
+            name: Configure
+            command: |
+              mkdir -p build
+              cd build
+              cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-g -O0 -fprofile-arcs -ftest-coverage -fpic" ..
+              make 
+        - run:
+            name: Run tests
+            command: |
+              cd build
+              make test
+        - run:
+            name: Report
+            command: |
+              gcovr -r .
+        - run:
+            name: Publish code coverage
+            command: |
+              if [ "${CIRCLE_BRANCH}" == "master" ]; then
+                coveralls --gcov-options '\-lp' -t ${CTOKEN}
+              fi
 workflows:
   version: 2
   build_and_deploy:
@@ -106,5 +132,14 @@ workflows:
           requires:
             - build
       - documentation:
+          filters:
+            branches:
+              ignore: gh-pages
           requires:
             - build
+      - codecoverage:
+            filters:
+              branches:
+                ignore: gp-pages
+            requires:
+              - build

@@ -19,41 +19,35 @@ Recently various nonlocal models have been applied for understanding of complex 
 ## Folder information
 *   [`data`](https://github.com/nonlocalmodels/nonlocalheatequation/tree/master/data) contains sample mesh data used to test the **Domain Decomposition** tool.
 *   [`description`](https://github.com/nonlocalmodels/nonlocalheatequation/tree/master/description) contains the **latex** code for building the project description.
-
 *   [`docs`](https://github.com/nonlocalmodels/nonlocalheatequation/tree/master/docs) contains the **Cmake** file for building the documentation.
-
 *   [`include`](https://github.com/nonlocalmodels/nonlocalheatequation/tree/master/include) contains various header files used in the nonlocal heat equation implementation
-
 *   [`src`](https://github.com/nonlocalmodels/nonlocalheatequation/tree/master/src) contains the source files for implementation ranging from serial 1d equation to fully distributed 2d nonlocal heat equation.
-
 *   [`tests`](https://github.com/nonlocalmodels/nonlocalheatequation/tree/master/tests) contains the **test** files used to test the correctness of various implementations of the nonlocal heat equation implementation and testing the **Load Balancing** algorithms.
 
 ## Source files information
 *   [`src/1d_nonlocal_serial.cpp`](https://github.com/nonlocalmodels/nonlocalheatequation/blob/master/src/1d_nonlocal_serial.cpp) implements serial implementation of 1D nonlocal heat equation.
-
 *   [`src/2d_nonlocal_serial.cpp`](https://github.com/nonlocalmodels/nonlocalheatequation/blob/master/src/2d_nonlocal_serial.cpp) implements serial implementation of 2D nonlocal heat equation.
-
 *   [`src/2d_nonlocal_async.cpp`](https://github.com/nonlocalmodels/nonlocalheatequation/blob/master/src/2d_nonlocal_async.cpp) implements asynchronous, thread level parallel implementation of 2D nonlocal heat equation.
-
 *   [`src/2d_nonlocal_distributed.cpp`](https://github.com/nonlocalmodels/nonlocalheatequation/blob/master/src/2d_nonlocal_distributed.cpp) implements fully distributed, data level parallel implementation of 1D nonlocal heat equation.
-
 *   [`src/domain_decomposition.cpp`](https://github.com/nonlocalmodels/nonlocalheatequation/blob/master/src/domain_decomposition.cpp) implements the domain decomposition as a tool.
 
 ## Dependencies and version
 Following versions have been used and verified to be supported by the code:
 
+<<<<<<< HEAD
 *   [CMake](https://cmake.org/) version : `3.10` or beyond
 
 *   [VTK](https://vtk.org/) version : `8.2.0`
 
+=======
+*   [Slurm](https://slurm.schedmd.com/)
+*   [CMake](https://cmake.org/) version : `3.10` or beyond
+*   [VTK](https://vtk.org/)
+>>>>>>> 4bf343f6e9b4603f93c9de5c79ed371681d56df5
 *   [GMSH](http://gmsh.info/) version : `4.7.0`
-
 *   [METIS](http://glaros.dtc.umn.edu/gkhome/metis/metis/overview) version : `5.1.0`
-
 *   [HPX](https://github.com/STEllAR-GROUP/hpx) version : `1.4.1`
-
     *   [BOOST](https://www.boost.org/) version : `1.71.0`
-
     *   [HWLOC](https://www.open-mpi.org/projects/hwloc/) version : `1.11.13`
 
 ## Building and Installation
