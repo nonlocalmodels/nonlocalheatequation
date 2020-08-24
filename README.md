@@ -42,11 +42,9 @@ Recently various nonlocal models have been applied for understanding of complex 
 ## Dependencies and version
 Following versions have been used and verified to be supported by the code:
 
-*   [Slurm](https://slurm.schedmd.com/)
-
 *   [CMake](https://cmake.org/) version : `3.10` or beyond
 
-*   [VTK](https://vtk.org/)
+*   [VTK](https://vtk.org/) version : `8.2.0`
 
 *   [GMSH](http://gmsh.info/) version : `4.7.0`
 
