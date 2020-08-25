@@ -640,6 +640,7 @@ class solver {
   }
 
   /**
+   * @see load_balance
    * function for checking the load balancing and visualizing the same
    * using hpx::performance counters
    */
@@ -787,6 +788,7 @@ class solver {
    * function for inserting the rectangles which are just above, below and on
    * the sides of the given partition into the unordered_map used to index the
    * squares already inserted into the vector
+   * @see locality_subdomain_bfs
    * @param parent_id node id of the parent in the DFS
    * @param node_id node id of the region whose boundary is being extended or
    * contracted
@@ -832,6 +834,8 @@ class solver {
    * Function to run the load balancing algorithm every nbalance time steps.
    * Function reassigns localities to various square subdomains(if any) to
    * have balanced computation across all the nodes in the distributed setup.
+   * @see locality_subdomain_bfs
+   * @see redistribution_dfs
    * @param unbalanced_data std::vector of client-side data structures for
    * storing temperature data
    * @return std::vector of client-side data structures with some square
@@ -1058,6 +1062,7 @@ class solver {
   /**
    * function adds the external source to the 2d nonlocal heat equation for
    * testing correctness of numerical solution against the analytical solution
+   * @see sum_local
    * @param pos_x x coordinate of the point whose numerical solution is to be
    * computed
    * @param pos_y y coordinate of the point whose numerical solution is to be
