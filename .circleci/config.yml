@@ -33,14 +33,13 @@ jobs:
                   cd build
                   make doc
     deploy:
-      docker:
-        - image: docker:17.05.0-ce-git
+      machine:
+        image: ubuntu-2004:202008-01
       environment:
         IMAGE_FOLDER_NAME: .circleci/Docker
         IMAGE_NAME: diehlpk/nonlocalheatequation:latest
       steps:
         - checkout
-        - setup_remote_docker
         - run:
            name: Build Docker image
            command: |
