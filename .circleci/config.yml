@@ -48,14 +48,14 @@ jobs:
         - run: 
            name: Deploy to DockerHub
            command: |
-              if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              if [ "${CIRCLE_BRANCH}" == "main" ]; then
                 docker login -u $DOCKER_USER -p $DOCKER_PASS
                 docker push ${IMAGE_NAME}
               fi
         - run: 
            name: Deploy to GitHub
            command: |
-             if [ "${CIRCLE_BRANCH}" == "master" ]; then
+             if [ "${CIRCLE_BRANCH}" == "main" ]; then
                docker login docker.pkg.github.com --username diehlpk -p ${TOKEN}
                docker tag ${IMAGE_NAME} docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
                docker push docker.pkg.github.com/nonlocalmodels/nonlocalheatequation/nonlocalheatequation:latest
@@ -79,7 +79,7 @@ jobs:
               make doc
         - run:
             command: |
-              if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              if [ "${CIRCLE_BRANCH}" == "main" ]; then
                 git checkout gh-pages
                 git pull
                 cp -r ./docs/doxy/html/* documentation/
@@ -113,7 +113,7 @@ jobs:
         - run:
             name: Publish code coverage
             command: |
-              if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              if [ "${CIRCLE_BRANCH}" == "main" ]; then
                 coveralls --gcov-options '\-lp' -t ${CTOKEN}
               fi
 workflows:
